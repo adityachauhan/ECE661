@@ -10,6 +10,14 @@ def readImgCV(path):
 def cvrt2homo(pt):
     return np.append(pt, 1)
 
+def str2np(s):
+    x_prime_pts = s.split(',')
+    x_prime_pts = [int(val) for val in x_prime_pts]
+    x_prime_pts = np.array(x_prime_pts)
+    x_prime_pts = rearrange(x_prime_pts, '(c h)-> c h ', c=4, h=2)
+    return x_prime_pts
+
+
 class Vision:
     def __init__(self, x, x_prime, homo_mat_size=3):
         self.x = x
@@ -17,7 +25,7 @@ class Vision:
         self.h = np.ones((homo_mat_size,homo_mat_size))
         self.h_mat_size = homo_mat_size
 
-    def calc_homograpy(self):
+    def calc_homograpy(self, homo_mode):
         A = np.ones((len(self.x)*2,len(self.x)*2))
         C = np.ones(len(self.x)*2)
         for i in range(len(self.x)):
@@ -29,12 +37,6 @@ class Vision:
         B = np.dot(Ainv, C)
         B = np.append(B, 1)
         self.h = rearrange(B, '(c h)-> c h',c=self.h_mat_size, h=self.h_mat_size)
+        if homo_mode=='affine':
+            self.h[2] = np.array((0, 0, 1))
         return self.h
-<<<<<<< HEAD
-=======
-
-
-
-
-
->>>>>>> 84adec30d19eacb1564ca1e85790bd68ed6e1587
