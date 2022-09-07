@@ -13,6 +13,7 @@ def main():
     x_prime_img_path = os.path.join(config['PARAMETERS']['top_dir'],config['PARAMETERS']['x_prime_path'])
     x_prime_pts = config['PARAMETERS'][config['PARAMETERS']['card_pts']]
     homo_mode = config['PARAMETERS']['homo_mode']
+    output = config['PARAMETERS']['output']
 
     x_img= readImgCV(x_img_path)
     ho, wo, co = x_img.shape
@@ -59,8 +60,9 @@ def main():
                         np.transpose(l31), X) > 0:
                     if X_prime[1] < ho and X_prime[0] < wo:
                         x_prime_img[r][c] = x_img[X_prime[1]][X_prime[0]]
-    plt.imshow(x_prime_img)
-    plt.show()
+    # plt.imshow(x_prime_img)
+    # plt.show()
+    save_img('task2_r2d_card4.jpg', output, x_prime_img)
 
 if __name__ == "__main__":
     main()

@@ -10,6 +10,7 @@ config = configparser.ConfigParser()
 config.read('config.txt')
 
 def main():
+    output = config['PARAMETERS']['output']
     p1 = os.path.join(config['PARAMETERS']['top_dir'],'card1.jpeg')
     img1 = readImgCV(p1)
     h1,w1,c1 = img1.shape
@@ -46,9 +47,9 @@ def main():
                 if X_prime[1] < h1 and X_prime[0] < w1:
                     empty_img[X_prime[1]][X_prime[0]] = img1[r][c]
 
-    plt.imshow(empty_img)
-    plt.show()
-
+    # plt.imshow(empty_img)
+    # plt.show()
+    save_img('task1_part2.jpg', output, empty_img)
 
 
 

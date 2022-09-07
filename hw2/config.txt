@@ -1,10 +1,11 @@
 [PARAMETERS]
 homo_mat_size=3
-card_no=3
+card_no=4
 top_dir=hw2images
-x_path=car.jpg
+output=outputs
+#x_path=car.jpg
 #x_path=opm.jpg
-#x_path=opm_big.png
+x_path=opm_big.png
 x_prime_path=card%(card_no)s.jpeg
 card_pts1=525,287,1225,209,633,1080,1207,792
 card_pts2=330,259,1008,266,226,849,856,1092
@@ -12,6 +13,7 @@ card_pts3=588,87,1194,683,92,597,700,1162
 card_pts4=709,60,3834,936,262,1943,3185,2819
 card_pts5=181,198,2649,693,214,2259,2592,1894
 card_pts6=774,222,3574,360,214,1862,3720,2211
+card_pts7=400,1400,2610,1440,230,1880,2800,1880
 card_pts=card_pts%(card_no)s
 mapping=r2d
-homo_mode=affine
+homo_mode=projective
