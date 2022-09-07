@@ -1,6 +1,6 @@
 [PARAMETERS]
 homo_mat_size=3
-card_no=2
+card_no=3
 top_dir=hw2images
 x_path=car.jpg
 #x_path=opm.jpg

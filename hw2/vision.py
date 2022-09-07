@@ -25,18 +25,44 @@ class Vision:
         self.h = np.ones((homo_mat_size,homo_mat_size))
         self.h_mat_size = homo_mat_size
 
+    # def calc_homograpy(self, homo_mode):
+    #     A = np.ones((len(self.x)*2,len(self.x)*2))
+    #     C = np.ones(len(self.x)*2)
+    #     for i in range(len(self.x)):
+    #         A[2*i] = np.array([self.x[i][0], self.x[i][1], 1, 0, 0, 0, -self.x[i][0]*self.x_prime[i][0], -self.x[i][1]*self.x_prime[i][0]])
+    #         A[(2*i)+1] = np.array([0, 0, 0, self.x[i][0], self.x[i][1], 1, -self.x[i][0]*self.x_prime[i][1], -self.x[i][1]*self.x_prime[i][1]])
+    #         C[2*i] = self.x_prime[i][0]
+    #         C[(2*i)+1] = self.x_prime[i][1]
+    #     Ainv = np.linalg.inv(A)
+    #     B = np.dot(Ainv, C)
+    #     B = np.append(B, 1)
+    #     self.h = rearrange(B, '(c h)-> c h',c=self.h_mat_size, h=self.h_mat_size)
+    #     if homo_mode=='affine':
+    #         self.h[2] = np.array((0, 0, 1))
+    #     return self.h
     def calc_homograpy(self, homo_mode):
-        A = np.ones((len(self.x)*2,len(self.x)*2))
-        C = np.ones(len(self.x)*2)
-        for i in range(len(self.x)):
-            A[2*i] = np.array([self.x[i][0], self.x[i][1], 1, 0, 0, 0, -self.x[i][0]*self.x_prime[i][0], -self.x[i][1]*self.x_prime[i][0]])
-            A[(2*i)+1] = np.array([0, 0, 0, self.x[i][0], self.x[i][1], 1, -self.x[i][0]*self.x_prime[i][1], -self.x[i][1]*self.x_prime[i][1]])
-            C[2*i] = self.x_prime[i][0]
-            C[(2*i)+1] = self.x_prime[i][1]
-        Ainv = np.linalg.inv(A)
-        B = np.dot(Ainv, C)
-        B = np.append(B, 1)
-        self.h = rearrange(B, '(c h)-> c h',c=self.h_mat_size, h=self.h_mat_size)
+        if homo_mode=='projective':
+            A = np.ones((len(self.x)*2,len(self.x)*2))
+            C = np.ones(len(self.x)*2)
+            for i in range(len(self.x)):
+                A[2*i] = np.array([self.x[i][0], self.x[i][1], 1, 0, 0, 0, -self.x[i][0]*self.x_prime[i][0], -self.x[i][1]*self.x_prime[i][0]])
+                A[(2*i)+1] = np.array([0, 0, 0, self.x[i][0], self.x[i][1], 1, -self.x[i][0]*self.x_prime[i][1], -self.x[i][1]*self.x_prime[i][1]])
+                C[2*i] = self.x_prime[i][0]
+                C[(2*i)+1] = self.x_prime[i][1]
+            Ainv = np.linalg.inv(A)
+            B = np.dot(Ainv, C)
+            B = np.append(B, 1)
+            self.h = rearrange(B, '(c h)-> c h',c=self.h_mat_size, h=self.h_mat_size)
         if homo_mode=='affine':
-            self.h[2] = np.array((0, 0, 1))
+            A = np.ones(((len(self.x)-1) * 2, (len(self.x) -1)* 2))
+            C = np.ones((len(self.x) -1) * 2)
+            for i in range(len(self.x)-1):
+                A[2 * i] = np.array([self.x[i][0], self.x[i][1], 1, 0, 0, 0])
+                A[(2 * i) + 1] = np.array([0, 0, 0, self.x[i][0], self.x[i][1], 1])
+                C[2 * i] = self.x_prime[i][0]
+                C[(2 * i) + 1] = self.x_prime[i][1]
+            Ainv = np.linalg.inv(A)
+            B = np.dot(Ainv, C)
+            B = np.append(B, (0,0,1))
+            self.h = rearrange(B, '(c h)-> c h', c=self.h_mat_size, h=self.h_mat_size)
         return self.h
