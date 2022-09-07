@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-img_car = cv2.imread('./hw2images/car.jpg')
-card1 = cv2.imread('./hw2images/card3.jpeg')
+img_car = cv2.imread('../hw2images/car.jpg')
+card1 = cv2.imread('../hw2images/card3.jpeg')
 card1 = cv2.cvtColor(card1, cv2.COLOR_BGR2RGB)
 img_car = cv2.cvtColor(img_car, cv2.COLOR_BGR2RGB)
 h,w,c = img_car.shape

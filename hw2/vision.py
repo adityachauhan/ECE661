@@ -30,3 +30,11 @@ class Vision:
         B = np.append(B, 1)
         self.h = rearrange(B, '(c h)-> c h',c=self.h_mat_size, h=self.h_mat_size)
         return self.h
+<<<<<<< HEAD
+=======
+
+
+
+
+
+>>>>>>> 84adec30d19eacb1564ca1e85790bd68ed6e1587
