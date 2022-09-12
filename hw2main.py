@@ -7,7 +7,7 @@ from tqdm import tqdm
 from vision import *
 
 config = configparser.ConfigParser()
-config.read('config.txt')
+config.read('hw2config.txt')
 def main():
     x_img_path = os.path.join(config['PARAMETERS']['top_dir'], config['PARAMETERS']['x_path'])
     x_prime_img_path = os.path.join(config['PARAMETERS']['top_dir'],config['PARAMETERS']['x_prime_path'])

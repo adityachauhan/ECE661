@@ -1,0 +1,10 @@
+[PARAMETERS]
+homo_mat_size=3
+top_dir=hw3images
+output=hw3outputs
+x_path=building.jpg
+x_prime_path=%(x_path)s_prime.jpg
+x_pts=181,55,745,282,173,460,743,465
+x_prime_pts=100,100,700,100,100,500,700,500
+mapping=r2d
+homo_mode=projective
