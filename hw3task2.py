@@ -86,8 +86,8 @@ def main():
     ha[1][0] = A[1][0]
     ha[1][1] = A[1][1]
     ha[2][2]=1
-    ha=np.linalg.inv(ha)
-    # ha = np.matmul(ha, hvl)
+    # ha=np.linalg.inv(ha)
+    ha = np.dot(np.linalg.inv(hvl), ha)
     print(ha)
     # wPrime = xpeqhx(wp, 0, ha)
     # wpa = wPrime[0]
@@ -105,7 +105,7 @@ def main():
                 # empty_img2[int(np.floor(X_prime[1])), int(np.ceil(X_prime[0]))] = empty_img[r][c]
                 # empty_img2[int(np.ceil(X_prime[1])), int(np.floor(X_prime[0]))] = empty_img[r][c]
                 # empty_img2[int(np.ceil(X_prime[1])), int(np.ceil(X_prime[0]))] = empty_img[r][c]
-                empty_img2[int(X_prime[1]), int(X_prime[0])] = x_img[r][c]
+                empty_img2[int(X_prime[1]), int(X_prime[0])] = empty_img[r][c]
                 # empty_img2[r][c] = empty_img[int(X_prime[1])][int(X_prime[0])]
             # else: print(X_prime)
     plt.imshow(empty_img2)
