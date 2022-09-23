@@ -108,3 +108,14 @@ class Vision:
             B = np.append(B, (0,0,1))
             self.h = rearrange(B, '(c h)-> c h', c=self.h_mat_size, h=self.h_mat_size)
         return self.h
+
+
+def harrisCornerDetector(img, filter="HAAR", sigma=1.2):
+    if filter=="SOBEL":
+        gx = np.array([[-1,0,1],[-2,0,2],[-1,0,1]])
+        gy = np.array([[1,2,1],[0,0,0],[-1,-2,-1]])
+
+    if filter=="HAAR":
+        size = np.ceil(4*sigma) if np.ceil(4*sigma)%2==0 else np.ceil(4*sigma) + 1
+        gx=np.ones((size * size))
+        gx[:,:]
