@@ -4,6 +4,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from einops import rearrange
+from tqdm import trange, tqdm
 
 def readImgCV(path):
     img = cv2.imread(path)
@@ -112,10 +113,58 @@ class Vision:
 
 def harrisCornerDetector(img, filter="HAAR", sigma=1.2):
     if filter=="SOBEL":
-        gx = np.array([[-1,0,1],[-2,0,2],[-1,0,1]])
-        gy = np.array([[1,2,1],[0,0,0],[-1,-2,-1]])
+        gx, gy = Sobel()
 
     if filter=="HAAR":
-        size = np.ceil(4*sigma) if np.ceil(4*sigma)%2==0 else np.ceil(4*sigma) + 1
-        gx=np.ones((size * size))
-        gx[:,:]
+        gx, gy = Haar_Wavelet(sigma)
+
+    win_size = int(np.ceil(5 * sigma)) if np.ceil(5 * sigma) % 2 == 0 else int(np.ceil(5 * sigma)) + 1
+    dx = cv2.filter2D(img, -1, gx)
+    dy = cv2.filter2D(img, -1, gy)
+    temp = np.zeros((img.shape[0], img.shape[1]))
+    padding = int((win_size)/2)
+    new_dx = np.zeros(((img.shape[0]+2*padding),(img.shape[1]+2*padding)))
+    new_dy = np.zeros(((img.shape[0]+2*padding),(img.shape[1]+2*padding)))
+    new_dx[padding:padding+dx.shape[0], padding:padding+dx.shape[1]]=dx
+    new_dy[padding:padding+dy.shape[0], padding:padding+dy.shape[1]]=dy
+    for i in tqdm(range(img.shape[0])):
+        for j in range(img.shape[1]):
+            sum_dx = new_dx[(i+padding):i+(2*padding)+1,(j+padding):j+(2*padding)+1]
+            sum_dy = new_dy[(i+padding):i+(2*padding)+1,(j+padding):j+(2*padding)+1]
+            sum_dx2 = np.sum(np.multiply(sum_dx,sum_dx))
+            sum_dy2 = np.sum(np.multiply(sum_dy,sum_dy))
+            sum_dxdy= np.sum(np.multiply(sum_dx,sum_dy))
+            detC = sum_dx2*sum_dy2-(sum_dxdy**2)
+            trC = (sum_dx2+sum_dy2)**2
+            val=detC/(trC+1e-6)
+            if val>0:temp[i,j]=val
+
+    thresh = np.mean(temp)
+    thresh = 0.1
+    print(thresh)
+    pts=[]
+    nms_win_size=int(img.shape[0]/4)
+    print(nms_win_size)
+    padding = int((nms_win_size-1)/2)
+    padded_temp = np.zeros(((img.shape[0]+2*padding),(img.shape[1]+2*padding)))
+    padded_temp[padding:padding+temp.shape[0], padding:padding+temp.shape[1]]=temp
+    for i in tqdm(range(img.shape[0])):
+        for j in range(img.shape[1]):
+            if temp[i,j]>0:
+                if temp[i,j]==np.max(padded_temp[(i+padding):i+(2*padding)+1,(j+padding):j+(2*padding)+1]) and temp[i,j]>thresh:
+                    pts.append([j,i])
+
+    return pts
+
+def Sobel():
+    gx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+    gy = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+    return gx, gy
+
+def Haar_Wavelet(sigma):
+    size = int(np.ceil(4 * sigma)) if np.ceil(4 * sigma) % 2 == 0 else int(np.ceil(4 * sigma)) + 1
+    gx = np.ones((size, size))
+    gx = gx.astype(int)
+    gx[:, :int(size / 2)] = -1
+    gy = gx.T
+    return gx, gy
