@@ -1,4 +1,5 @@
 import os
+import random
 
 import cv2
 import matplotlib.pyplot as plt
@@ -7,6 +8,7 @@ from scipy.ndimage.filters import maximum_filter
 from einops import rearrange
 from tqdm import trange, tqdm
 from scipy.signal import convolve2d
+import sys
 
 def readImgCV(path):
     img = cv2.imread(path)
@@ -114,12 +116,11 @@ class Vision:
 
 
 def harrisCornerDetector(img, filter="HAAR", sigma=1.2):
-    if filter=="SOBEL":
-        gx, gy = Sobel()
-
-    if filter=="HAAR":
-        gx, gy = Haar_Wavelet(sigma)
-
+    # if filter=="SOBEL":
+    #     gx, gy = Sobel()
+    #
+    # if filter=="HAAR":
+    gx, gy = Haar_Wavelet(sigma)
     win_size = int(np.ceil(5 * sigma)) if np.ceil(5 * sigma) % 2 == 0 else int(np.ceil(5 * sigma)) + 1
     dx = convolve2d(img, gx, mode="same")
     dy = convolve2d(img, gy, mode="same")
@@ -141,10 +142,97 @@ def harrisCornerDetector(img, filter="HAAR", sigma=1.2):
     Ratios*(Ratios==maximum_filter(Ratios, footprint=np.ones((5,5))))
     corners = np.where(Ratios>0.01*np.max(Ratios))
 
-    print(len(corners[0]), len(corners[1]))
+    # print(len(corners[0]), len(corners[1]))
     return corners
 
+def extarct_patch(pt, win_size, img):
+    # print(img.shape)
+    assert win_size%2 != 0
+    pad = int((win_size-1)/2)
+    val_minx = pt[0] - pad
+    val_maxx = pt[0] + pad
+    val_miny = pt[1] - pad
+    val_maxy = pt[1] + pad
+    win_minx = val_minx #if val_minx > 0 else 0
+    win_maxx = val_maxx #if val_maxx < img.shape[1] else img.shape[1]
+    win_miny = val_miny #if val_miny > 0 else 0
+    win_maxy = val_maxy #if val_maxy < img.shape[0] else img.shape[0]
+    # print(win_minx, win_miny, win_maxx, win_maxy)
+    pix_vals = []
+    for i in range(win_minx, win_maxx):
+        for j in range(win_miny, win_maxy):
+            pix_vals.append(img[j,i])
+    return pix_vals
 
+def ssd(pts1, pts2, img1, img2, win_size):
+    combined_pt_set=[]
+    patches1=[]
+    patches2=[]
+    pad=int((win_size-1)/2)
+    img1=cv2.copyMakeBorder(img1, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0)
+    img2=cv2.copyMakeBorder(img2, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0)
+    for pt in pts1:
+        patches1.append(extarct_patch(pt, win_size, img1))
+    for pt in pts2:
+        patches2.append(extarct_patch(pt, win_size, img2))
+
+    for i in range(len(patches1)):
+        min_dist =[]
+        for j in range(len(patches2)):
+            min_dist.append(np.mean((np.array(patches1[i])-np.array(patches2[j]))**2))
+        min_val = min(v for v in min_dist if v>0.0)
+        # combined_pt_set.append([i,np.argmin(np.array(min_dist)), min_dist[np.argmin(np.array(min_dist))]])
+        combined_pt_set.append([i,min_dist.index(min_val), min_dist[min_dist.index(min_val)]])
+
+    return combined_pt_set
+
+
+def ncc(pts1, pts2, img1, img2, win_size):
+    combined_pt_set = []
+    patches1 = []
+    patches2 = []
+    pad = int((win_size - 1) / 2)
+    img1 = cv2.copyMakeBorder(img1, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0)
+    img2 = cv2.copyMakeBorder(img2, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0)
+    for pt in pts1:
+        patches1.append(extarct_patch(pt, win_size, img1))
+    for pt in pts2:
+        patches2.append(extarct_patch(pt, win_size, img2))
+
+    for i in range(len(patches1)):
+        min_dist = []
+        p1=np.array(patches1[i])
+        for j in range(len(patches2)):
+            p2 = np.array(patches2[j])
+            numerator = np.sum((p1-np.mean(p1))*(p2-np.mean(p2)))
+            denomiator= np.sqrt(np.sum((p1-np.mean(p1))**2)*np.sum((p2-np.mean(p2))**2))
+            min_dist.append(1-(numerator/(denomiator+1e-6)))
+        min_val = min(v for v in min_dist if v > 0.0)
+        combined_pt_set.append([i,min_dist.index(min_val), min_dist[min_dist.index(min_val)]])
+
+    return combined_pt_set
+
+'''
+Sift code from opencv documentation page.
+https://docs.opencv.org/4.x/dc/dc3/tutorial_py_matcher.html
+'''
+def sift_matching(img_path1, img_path2):
+    img1 = cv2.imread(img_path1, cv2.IMREAD_GRAYSCALE)
+    img2 = cv2.imread(img_path2, cv2.IMREAD_GRAYSCALE)
+    sift = cv2.SIFT_create()
+    kp1, dv1 = sift.detectAndCompute(img1, None)
+    kp2, dv2 = sift.detectAndCompute(img2, None)
+
+    matcher = cv2.BFMatcher()
+    matches = matcher.knnMatch(dv1,dv2,k=2)
+
+    points = []
+    for m,n in matches:
+        if m.distance < 0.75*n.distance:
+            points.append([m])
+
+    img3 = cv2.drawMatchesKnn(img1, kp1, img2, kp2, points, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    return img3, points
 def Sobel():
     gx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
     gy = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
@@ -157,3 +245,6 @@ def Haar_Wavelet(sigma):
     gx[:, :int(size / 2)] = -1
     gy = gx.T
     return gx, gy
+
+def pick_color():
+    return (random.randint(10,250),random.randint(10,250),random.randint(10,250))
