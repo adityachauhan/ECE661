@@ -5,4 +5,5 @@ img_path1=books_1.jpeg
 img_path2=books_2.jpeg
 img_path3=fountain_1.jpg
 img_path4=fountain_2.jpg
+test_path=test2.png
 filter=HAAR

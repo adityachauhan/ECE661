@@ -4,8 +4,10 @@ from scipy.optimize import least_squares
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.ndimage.filters import maximum_filter
 from einops import rearrange
 from tqdm import trange, tqdm
+from scipy.signal import convolve2d
 
 def readImgCV(path):
     img = cv2.imread(path)
@@ -120,42 +122,29 @@ def harrisCornerDetector(img, filter="HAAR", sigma=1.2):
         gx, gy = Haar_Wavelet(sigma)
 
     win_size = int(np.ceil(5 * sigma)) if np.ceil(5 * sigma) % 2 == 0 else int(np.ceil(5 * sigma)) + 1
-    dx = cv2.filter2D(img, -1, gx)
-    dy = cv2.filter2D(img, -1, gy)
-    temp = np.zeros((img.shape[0], img.shape[1]))
-    padding = int((win_size)/2)
-    new_dx = np.zeros(((img.shape[0]+2*padding),(img.shape[1]+2*padding)))
-    new_dy = np.zeros(((img.shape[0]+2*padding),(img.shape[1]+2*padding)))
-    new_dx[padding:padding+dx.shape[0], padding:padding+dx.shape[1]]=dx
-    new_dy[padding:padding+dy.shape[0], padding:padding+dy.shape[1]]=dy
-    for i in tqdm(range(img.shape[0])):
-        for j in range(img.shape[1]):
-            sum_dx = new_dx[(i+padding):i+(2*padding)+1,(j+padding):j+(2*padding)+1]
-            sum_dy = new_dy[(i+padding):i+(2*padding)+1,(j+padding):j+(2*padding)+1]
-            sum_dx2 = np.sum(np.multiply(sum_dx,sum_dx))
-            sum_dy2 = np.sum(np.multiply(sum_dy,sum_dy))
-            sum_dxdy= np.sum(np.multiply(sum_dx,sum_dy))
-            detC = sum_dx2*sum_dy2-(sum_dxdy**2)
-            trC = (sum_dx2+sum_dy2)**2
-            val=detC/(trC+1e-6)
-            if val>0:temp[i,j]=val
+    dx = convolve2d(img, gx, mode="same")
+    dy = convolve2d(img, gy, mode="same")
 
-    thresh = np.mean(temp)
-    thresh = 0.1
-    print(thresh)
-    pts=[]
-    nms_win_size=int(img.shape[0]/4)
-    print(nms_win_size)
-    padding = int((nms_win_size-1)/2)
-    padded_temp = np.zeros(((img.shape[0]+2*padding),(img.shape[1]+2*padding)))
-    padded_temp[padding:padding+temp.shape[0], padding:padding+temp.shape[1]]=temp
-    for i in tqdm(range(img.shape[0])):
-        for j in range(img.shape[1]):
-            if temp[i,j]>0:
-                if temp[i,j]==np.max(padded_temp[(i+padding):i+(2*padding)+1,(j+padding):j+(2*padding)+1]) and temp[i,j]>thresh:
-                    pts.append([j,i])
+    sumK = np.ones((win_size,win_size))
+    dx2 = dx**2
+    dy2 = dy**2
+    dxdy= np.multiply(dx,dy)
 
-    return pts
+    sum_dx2=convolve2d(dx2, sumK,mode="same")
+    sum_dy2=convolve2d(dy2, sumK,mode="same")
+    sum_dxdy=convolve2d(dxdy, sumK,mode="same")
+
+    detC = sum_dx2*sum_dy2 - (sum_dxdy**2)
+    trC = sum_dx2+sum_dy2
+    trC2 = trC**2
+    k=0.05
+    Ratios = detC - k*trC2
+    Ratios*(Ratios==maximum_filter(Ratios, footprint=np.ones((5,5))))
+    corners = np.where(Ratios>0.01*np.max(Ratios))
+
+    print(len(corners[0]), len(corners[1]))
+    return corners
+
 
 def Sobel():
     gx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
@@ -212,51 +201,6 @@ def hmat_pinv(x, x_prime):
     h = np.concatenate([h,[1]])
     h = rearrange(h, '(c h)-> c h',c=3, h=3)
     return h
-
-
-# def RANSAC(pts1, pts2):
-#     p = 0.99
-#     n = 20
-#     sigma=2
-#     delta = 3*sigma
-#     e = 0.1
-#     N = int(np.ceil(np.log(1 - p) / np.log(1 - (1 - e) ** n)))
-#     print(N)
-#     n_total = len(pts1)
-#     pts1_hc = np.ones((n_total, 3))
-#     pts1_hc[:, :-1] = pts1
-#     pts2_hc = np.ones((n_total, 3))
-#     pts2_hc[:, :-1] = pts2
-#     print(pts1_hc.shape, pts2_hc.shape)
-#     outliers=True
-#     while outliers:
-#         count=0
-#         prev_size=0
-#         idx_set=[]
-#         while count < N:
-#             randIdx = np.random.randint(n_total, size=n)
-#             cpts1 = pts1_hc[randIdx,:]
-#             cpts2 = pts2_hc[randIdx,:]
-#             cH = hmat_pinv(cpts1, cpts2)
-#             est_cpts2 = cH @ pts1_hc.T
-#             est_cpts2 = est_cpts2/est_cpts2[2]
-#             est_cpts2 = rearrange(est_cpts2, 'c h -> h c')
-#             error = (pts2_hc[:,:-1] - est_cpts2[:,:-1])**2
-#             error = error @ np.ones((2,1))
-#             in_indices = np.where(error <= delta)[0]
-#             if len(in_indices) > prev_size:
-#                 idx_set = in_indices
-#                 prev_size=len(in_indices)
-#             count+=1
-#         if len(idx_set) > (1-e)*n_total:
-#             outliers=False
-#             print("Here")
-#         else:
-#             e*=2
-#             N = int(np.ceil(np.log(1 - p) / np.log(1 - (1 - e) ** n)))
-#             print("new N", N)
-#     print("num inliers found:", len(idx_set))
-#     return idx_set
 
 def RANSAC(pts1, pts2):
     p = 0.99
