@@ -1,5 +1,9 @@
 import os
+<<<<<<< HEAD
 import random
+=======
+from scipy.optimize import least_squares
+>>>>>>> 5cced4643545f1ee75fa6a7378bc0f00ae827aab
 
 import cv2
 import matplotlib.pyplot as plt
@@ -36,7 +40,7 @@ def xpeqhx(x,y,h):
     X = np.array((x, y, 1))
     X_prime = np.matmul(h, X)
     X_prime = X_prime / X_prime[2]
-    # X_prime = X_prime.astype(int)
+    X_prime = X_prime.astype(int)
     return X_prime
 
 def point2point(x,h):
@@ -246,5 +250,168 @@ def Haar_Wavelet(sigma):
     gy = gx.T
     return gx, gy
 
+
 def pick_color():
     return (random.randint(10,250),random.randint(10,250),random.randint(10,250))
+
+def SIFTpoints(img):
+    pts_set=[]
+    sift = cv2.SIFT_create()
+    pts, des = sift.detectAndCompute(img, None)
+
+    for pt in pts:
+        pts_set.append([int(pt.pt[0]), int(pt.pt[1])])
+    return pts_set, des
+
+
+def flann_matching(pts1,pts2,des1,des2):
+    FLANN_INDEX_KDTREE = 1
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+    search_params = dict(checks=50)
+    flann = cv2.FlannBasedMatcher(index_params, search_params)
+    matches = flann.knnMatch(des1, des2, k=2)
+    matchingPts1=[]
+    matchingPts2=[]
+    for i, (m, n) in enumerate(matches):
+        if m.distance < 0.25 * n.distance:
+            matchingPts1.append((pts1[m.queryIdx].pt[0],pts1[m.queryIdx].pt[1]))
+            matchingPts2.append((pts2[n.trainIdx].pt[0],pts2[n.trainIdx].pt[1]))
+    matchingPts1 = [[int(val[0]), int(val[1])] for val in matchingPts1]
+    matchingPts2 = [[int(val[0]), int(val[1])] for val in matchingPts2]
+    return matchingPts1, matchingPts2
+
+def hmat_pinv(x, x_prime):
+    A = np.ones((len(x) * 2, 8))
+    C = np.ones(len(x) * 2)
+    # print(A.shape, C.shape)
+    for i in range(len(x)):
+        A[2 * i] = np.array([x[i][0], x[i][1], 1, 0, 0, 0, -x[i][0] * x_prime[i][0],
+                             -x[i][1] * x_prime[i][0]])
+        A[(2 * i) + 1] = np.array([0, 0, 0, x[i][0], x[i][1], 1, -x[i][0] * x_prime[i][1],
+                                   -x[i][1] * x_prime[i][1]])
+        C[2 * i] = x_prime[i][0]
+        C[(2 * i) + 1] = x_prime[i][1]
+
+    h = (np.linalg.inv((A.T)@A)@A.T)@C
+    h = np.concatenate([h,[1]])
+    h = rearrange(h, '(c h)-> c h',c=3, h=3)
+    return h
+
+def RANSAC(pts1, pts2):
+    p = 0.99
+    n = 20
+    sigma=4
+    delta = 3*sigma
+    e = 0.1
+    N = int(np.ceil(np.log(1 - p) / np.log(1 - (1 - e) ** n)))
+    print(N)
+    n_total = len(pts1)
+    pts1_hc = np.ones((n_total, 3))
+    pts1_hc[:, :-1] = pts1
+    pts2_hc = np.ones((n_total, 3))
+    pts2_hc[:, :-1] = pts2
+    # print(pts1_hc.shape, pts2_hc.shape)
+    outliers=True
+    while outliers:
+        count=0
+        prev_size=0
+        idx_set=[]
+        while count < N:
+            randIdx = np.random.randint(n_total, size=n)
+            cpts1 = pts1_hc[randIdx,:]
+            cpts2 = pts2_hc[randIdx,:]
+            cH = hmat_pinv(cpts1, cpts2)
+            est_cpts2 = cH @ pts1_hc.T
+            est_cpts2 = est_cpts2/est_cpts2[2]
+            est_cpts2 = rearrange(est_cpts2, 'c h -> h c')
+            error = (pts2_hc[:,:-1] - est_cpts2[:,:-1])**2
+            error = error @ np.ones((2,1))
+            in_indices = np.where(error <= delta)[0]
+            if len(in_indices) > prev_size:
+                print("reached", len(in_indices), (1-e)*n_total)
+                idx_set = in_indices
+                if len(idx_set) > (1 - e) * n_total:
+                    outliers = False
+                    break
+                prev_size=len(in_indices)
+            count+=1
+        if len(idx_set) > (1-e)*n_total:
+            outliers=False
+            print("Here")
+        else:
+            e*=2
+            N = int(np.ceil(np.log(1 - p) / np.log(1 - (1 - e) ** n)))
+            print("new N", N)
+    print("num inliers found:", len(idx_set))
+    return idx_set
+
+
+def sift_match(pts1, des1, pts2, des2, tr=3):
+    match_pts1 = []
+    match_pts2 = []
+    eu = np.zeros((len(pts1), len(pts2)))
+    for i in trange(len(pts1)):
+        for j in range(len(pts2)):
+            eu[i, j] = np.linalg.norm(des1[i, :] - des2[j, :])
+
+    eu = eu / np.min(eu)
+    dy_threshold = tr
+    for i in trange(len(pts1)):
+        eu_min = np.min(eu[i, :])
+        if eu_min < dy_threshold:
+            j_min = np.argmin(eu[i, :])
+            match_pts1.append(pts1[i])
+            match_pts2.append(pts2[j_min])
+    print('number of sift matches found:', len(match_pts1))
+    return match_pts1, match_pts2
+
+def costFun(h, pts1, pts2):
+    h = rearrange(h, '(c h)-> c h', c=3,h=3)
+    n_total = len(pts1)
+    pts1_hc = np.ones((n_total, 3))
+    pts1_hc[:, :-1] = pts1
+    pts2_hc = np.ones((n_total, 3))
+    pts2_hc[:, :-1] = pts2
+    est_cpts2 = h @ pts1_hc.T
+    est_cpts2 = est_cpts2 / est_cpts2[2]
+    est_cpts2 = rearrange(est_cpts2, 'c h -> h c')
+    X = rearrange(np.array(pts2), 'c h -> (c h)')
+    f = rearrange(np.array(est_cpts2[:,:-1]), 'c h -> (c h)')
+    error = X-f
+    # error = error @ np.ones((2,1))
+    # error = rearrange(error, 'c h -> (c h)')
+    return error
+
+
+def pan(comb, img, H):
+    h=img.shape[0]
+    w=img.shape[1]
+    h_tot=comb.shape[0]
+    w_tot=comb.shape[1]
+    H = np.linalg.inv(H)
+    X,Y=np.meshgrid(np.arange(0,w_tot,1),np.arange(0,h_tot,1))
+    pts=np.vstack((X.ravel(), Y.ravel())).T
+    pts=np.hstack((pts[:,0:2],pts[:,0:1]*0+1))
+    Hpts=H @ pts.T
+    Hpts=Hpts/Hpts[2,:]
+    Hpts=Hpts.T[:, 0:2].astype('int')
+    valid_pts, valid_Hpts = find_valid_pts(pts, Hpts, w-1, h-1)
+    for i in range(valid_pts.shape[0]):
+        if (comb[valid_pts[i,1], valid_pts[i,0]] != 0).all() == False:
+            comb[valid_pts[i, 1], valid_pts[i, 0]]=img[valid_Hpts[i,1], valid_Hpts[i,0]]
+    return comb
+def find_valid_pts(pts, Hpts, w,h):
+    xmin=Hpts[:,0] >=0
+    Hpts=Hpts[xmin,:]
+    pts=pts[xmin,:]
+    xmax=Hpts[:,0]<=w
+    Hpts=Hpts[xmax,:]
+    pts=pts[xmax,:]
+    ymin=Hpts[:,1]>=0
+    Hpts=Hpts[ymin,:]
+    pts=pts[ymin,:]
+    ymax=Hpts[:,1]<=h
+    Hpts=Hpts[ymax,:]
+    pts=pts[ymax,:]
+    return pts, Hpts
+

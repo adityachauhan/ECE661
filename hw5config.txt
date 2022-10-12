@@ -1,0 +1,4 @@
+[PARAMETERS]
+top_dir=hw5images_v3/
+output=hw5outputs/
+img_count=5
