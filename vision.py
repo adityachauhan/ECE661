@@ -1,9 +1,8 @@
 import os
-<<<<<<< HEAD
+
 import random
-=======
 from scipy.optimize import least_squares
->>>>>>> 5cced4643545f1ee75fa6a7378bc0f00ae827aab
+
 
 import cv2
 import matplotlib.pyplot as plt
@@ -22,7 +21,14 @@ def readImgCV(path):
 def cvrt2homo(pt):
     return np.append(pt, 1)
 
-
+def plotCost(cost, name):
+    plt.figure()
+    plt.scatter(range(len(cost)), np.array(cost), s=80, edgecolors='black', c='red', label='data')
+    plt.xlabel('Iterations')
+    plt.xlabel('Cost')
+    plt.title("Cost VS Iterations")
+    plt.legend()
+    plt.savefig(name)
 
 def str2np(s):
     x_prime_pts = s.split(',')
@@ -283,7 +289,6 @@ def flann_matching(pts1,pts2,des1,des2):
 def hmat_pinv(x, x_prime):
     A = np.ones((len(x) * 2, 8))
     C = np.ones(len(x) * 2)
-    # print(A.shape, C.shape)
     for i in range(len(x)):
         A[2 * i] = np.array([x[i][0], x[i][1], 1, 0, 0, 0, -x[i][0] * x_prime[i][0],
                              -x[i][1] * x_prime[i][0]])
@@ -312,6 +317,7 @@ def RANSAC(pts1, pts2):
     pts2_hc[:, :-1] = pts2
     # print(pts1_hc.shape, pts2_hc.shape)
     outliers=True
+    cost = []
     while outliers:
         count=0
         prev_size=0
@@ -326,9 +332,10 @@ def RANSAC(pts1, pts2):
             est_cpts2 = rearrange(est_cpts2, 'c h -> h c')
             error = (pts2_hc[:,:-1] - est_cpts2[:,:-1])**2
             error = error @ np.ones((2,1))
+            cost.append(np.linalg.norm(error))
             in_indices = np.where(error <= delta)[0]
             if len(in_indices) > prev_size:
-                print("reached", len(in_indices), (1-e)*n_total)
+                print("Processing RANSAC....")
                 idx_set = in_indices
                 if len(idx_set) > (1 - e) * n_total:
                     outliers = False
@@ -337,15 +344,13 @@ def RANSAC(pts1, pts2):
             count+=1
         if len(idx_set) > (1-e)*n_total:
             outliers=False
-            print("Here")
         else:
             e*=2
             N = int(np.ceil(np.log(1 - p) / np.log(1 - (1 - e) ** n)))
-            print("new N", N)
     print("num inliers found:", len(idx_set))
-    return idx_set
+    return idx_set, cost
 
-
+#Euclidian distance based matching found the matcher code online
 def sift_match(pts1, des1, pts2, des2, tr=3):
     match_pts1 = []
     match_pts2 = []
@@ -378,40 +383,93 @@ def costFun(h, pts1, pts2):
     X = rearrange(np.array(pts2), 'c h -> (c h)')
     f = rearrange(np.array(est_cpts2[:,:-1]), 'c h -> (c h)')
     error = X-f
-    # error = error @ np.ones((2,1))
-    # error = rearrange(error, 'c h -> (c h)')
     return error
 
+def create_panaroma(curr_img, new_img, H):
+    hc,wc,cc = curr_img.shape
+    hn,wn,cn = new_img.shape
+    Hinv = np.linalg.inv(H)
+    pts_hc = []
+    for i in range(hc):
+        for j in range(wc):
+            pts_hc.append([j,i,1])
+    pts_hc = np.array(pts_hc)
+    est_pts = Hinv @ pts_hc.T
+    est_pts = est_pts/est_pts[2,:]
+    est_pts = est_pts.T[:,0:2].astype('int')
+    idx= np.where(np.logical_and(np.logical_and(est_pts[:,0]>=0,est_pts[:,0]<=wn-1),np.logical_and(est_pts[:,1]>=0,est_pts[:,1]<=hn-1)))
+    pts=pts_hc[idx]
+    est_pts=est_pts[idx]
+    curr_img[pts[:, 1], pts[:, 0]] = new_img[est_pts[:, 1], est_pts[:, 0]]
+    return curr_img
 
-def pan(comb, img, H):
-    h=img.shape[0]
-    w=img.shape[1]
-    h_tot=comb.shape[0]
-    w_tot=comb.shape[1]
-    H = np.linalg.inv(H)
-    X,Y=np.meshgrid(np.arange(0,w_tot,1),np.arange(0,h_tot,1))
-    pts=np.vstack((X.ravel(), Y.ravel())).T
-    pts=np.hstack((pts[:,0:2],pts[:,0:1]*0+1))
-    Hpts=H @ pts.T
-    Hpts=Hpts/Hpts[2,:]
-    Hpts=Hpts.T[:, 0:2].astype('int')
-    valid_pts, valid_Hpts = find_valid_pts(pts, Hpts, w-1, h-1)
-    for i in range(valid_pts.shape[0]):
-        if (comb[valid_pts[i,1], valid_pts[i,0]] != 0).all() == False:
-            comb[valid_pts[i, 1], valid_pts[i, 0]]=img[valid_Hpts[i,1], valid_Hpts[i,0]]
-    return comb
-def find_valid_pts(pts, Hpts, w,h):
-    xmin=Hpts[:,0] >=0
-    Hpts=Hpts[xmin,:]
-    pts=pts[xmin,:]
-    xmax=Hpts[:,0]<=w
-    Hpts=Hpts[xmax,:]
-    pts=pts[xmax,:]
-    ymin=Hpts[:,1]>=0
-    Hpts=Hpts[ymin,:]
-    pts=pts[ymin,:]
-    ymax=Hpts[:,1]<=h
-    Hpts=Hpts[ymax,:]
-    pts=pts[ymax,:]
-    return pts, Hpts
+def plot_inliers_outliers(img1, img2, idx, mp1, mp2):
+    comb_img = np.concatenate((img1, img2), axis=1)
+    for i in range(len(mp1)):
+        p1 = (int(mp1[i][0]), int(mp1[i][1]))
+        p2 = (int(mp2[i][0]) + img1.shape[1], int(mp2[i][1]))
+        if i in idx:
+            cv2.circle(comb_img, p1, radius=3, color=(0, 255, 0),thickness=-1)
+            cv2.circle(comb_img, p2, radius=3, color=(0, 255, 0),thickness=-1)
+            cv2.line(comb_img, p1, p2, color=(0, 255, 0), thickness=1)
+
+        else:
+            cv2.circle(comb_img, p1, radius=3, color=(255, 0, 0), thickness=-1)
+            cv2.circle(comb_img, p2, radius=3, color=(255, 0, 0),thickness=-1)
+            cv2.line(comb_img, p1, p2, color=(255, 0, 0), thickness=1)
+
+    return comb_img
+
+def Jacobian(pts, h):
+    h = rearrange(h, '(c h) -> c h', c=3,h=3)
+    J = np.zeros((len(pts)*2, 9))
+    for i in range(len(pts)):
+        f=h @ np.array([pts[i][0], pts[i][1], 1])
+        J[2*i] = np.array([pts[i][0]/f[-1], pts[i][1]/f[-1], 1/f[-1], 0, 0, 0, (-pts[i][0]*f[0])/(f[-1]**2), (-pts[i][1]*f[0])/(f[-1]**2), -f[0]/(f[-1]**2)])
+        J[2*i+1] = np.array([0,0,0,pts[i][0]/f[-1], pts[i][1]/f[-1], 1/f[-1], (-pts[i][0]*f[1])/(f[-1]**2), (-pts[i][1]*f[1])/(f[-1]**2), -f[1]/(f[-1]**2)])
+
+    return J
+
+#Followed from the pseudo-code by levmar
+def LevMar(H, pts1, pts2):
+    I = np.identity(9)
+    tau = 0.5
+    J = Jacobian(pts1, H)
+    A = J.T @ J
+    mu = tau * np.max(np.diag(A))
+    h=H
+    k=0
+    kmax=100
+    cost=[]
+    while k<kmax:
+        ce = costFun(h, pts1, pts2)
+        c = np.linalg.norm(ce)**2
+        Jk = Jacobian(pts1, h)
+        deltaP = (np.linalg.inv((Jk.T @ Jk) + mu*I) @ Jk.T) @ ce
+        Hk=h + deltaP
+        cek = costFun(Hk, pts1, pts2)
+        ck = np.linalg.norm(cek)**2
+        cost.append(ck)
+        rho_num = c-ck
+        rho_den = deltaP.T@(((mu*I) @ deltaP) + (Jk.T @ ce))
+        rho = rho_num/rho_den
+        muk = mu * max(1/3, 1-(2*rho - 1)**3)
+        mu = muk
+        h=Hk
+        k+=1
+
+    return h, cost
+
+def findmaxmin(ho,wo,h):
+    hPrime = xpeqhx(0, 0, h)
+    wpa1, hpa1 = hPrime[0], hPrime[1]
+    hPrime = xpeqhx(0, ho, h)
+    wpa2, hpa2 = hPrime[0], hPrime[1]
+    hPrime = xpeqhx(wo, 0, h)
+    wpa3, hpa3 = hPrime[0], hPrime[1]
+    hPrime = xpeqhx(wo, ho, h)
+    wpa4, hpa4 = hPrime[0], hPrime[1]
+    wpa = max(wpa1, max(wpa2, max(wpa3, wpa4)))
+    hpa = max(hpa1, max(hpa2, max(hpa3, hpa4)))
+    return wpa, hpa
 

@@ -1,4 +1,8 @@
 [PARAMETERS]
-top_dir=hw5images_v3/
-output=hw5outputs/
+top_dir=hw5images
+img_type=fountain
+output=hw5outputs
 img_count=5
+mode=LM
+#mode=scipyLM
+#mode=noLM
