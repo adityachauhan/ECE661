@@ -18,9 +18,22 @@ def readImgCV(path):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img
 
+def bgr2rgb(img):
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+def bgr2gray(img):
+    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 def cvrt2homo(pt):
     return np.append(pt, 1)
 
+def cv2show(img):
+    cv2.imshow('img',img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+def pltshow(img):
+    plt.imshow(img)
+    plt.show()
 def plotCost(cost, name):
     plt.figure()
     plt.scatter(range(len(cost)), np.array(cost), s=80, edgecolors='black', c='red', label='data')
@@ -473,3 +486,55 @@ def findmaxmin(ho,wo,h):
     hpa = max(hpa1, max(hpa2, max(hpa3, hpa4)))
     return wpa, hpa
 
+def plthist(hist, bins):
+    plt.bar(bins, hist, color='b', width=5, align='center', alpha=0.25)
+    plt.show()
+def histogram(img, bins):
+    h,w = img.shape[0],img.shape[1]
+    hist = np.zeros(bins)
+    for i in range(h):
+        for j in range(w):
+            hist[img[i,j]]+=1
+    return hist
+
+def otsu(img, bins, hist):
+    # hist = histogram(img, bins)
+    p = hist/np.sum(hist)
+    ip=np.arange(1,bins+1)
+    mu = np.multiply(p,ip)
+    mut= p@ip
+    sigmab=np.zeros(bins+1)
+    for k in range(1, bins):
+        w0 = np.sum(p[:k])
+        w1 = 1-w0
+        if w0 > 0 and w0 < 1 and w1 > 0 and w1 < 1:
+            mu0 = np.sum(mu[:k])
+            mu1 = (mut-mu0)/w1
+            sigmab[k]=(w0*w1*((mu1-mu0)**2))
+    ks = np.argmax(sigmab)
+    _,thresh = cv2.threshold(img, ks, 255, cv2.THRESH_BINARY)
+    _,thresh_inv = cv2.threshold(img, ks, 255, cv2.THRESH_BINARY_INV)
+    return thresh, thresh_inv
+
+def otsu_rgb(img, bins):
+    channels = cv2.split(img)
+    comb = np.ones(channels[0].shape).astype(np.uint8)*255
+    for channel in channels:
+        hist = histogram(channel, bins)
+        thresh, thresh_inv = otsu(channel, bins, hist)
+        comb = cv2.bitwise_and(comb, thresh)
+    return comb
+
+def otsu_texture(img, bins, window_sizes):
+    comb = np.zeros(np.append(img.shape, len(window_sizes)))
+    for idx in range(len(window_sizes)):
+        padding = window_sizes[idx]//2
+        temp = cv2.copyMakeBorder(img, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=0)
+        for r in range(img.shape[0]):
+            for c in range(img.shape[1]):
+                win = temp[r:r+(2*padding+1),c:c+(2*padding+1)]
+                comb[r,c,idx] = np.var(win)
+    comb=comb.astype(np.uint8)
+    return comb
+
+# def contour(img):

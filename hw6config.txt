@@ -1,0 +1,4 @@
+[PARAMETERS]
+top_dir=hw6images
+output=hw6outputs
+bins=256
