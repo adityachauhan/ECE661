@@ -31,5 +31,12 @@ def main():
         cv2show(texture_img)
         texture_img_rgb = otsu_rgb(texture_img, bins)
         cv2show(texture_img_rgb)
+        '''Contour here'''
+        cnt1 = contour(thresh)
+        cnt2 = contour(thresh_rgb)
+        cnt3 = contour(texture_img_rgb)
+        cv2show(cnt1)
+        cv2show(cnt2)
+        cv2show(cnt3)
 if __name__=='__main__':
     main()

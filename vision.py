@@ -537,4 +537,13 @@ def otsu_texture(img, bins, window_sizes):
     comb=comb.astype(np.uint8)
     return comb
 
-# def contour(img):
+def contour(img):
+    cnt = np.zeros(img.shape).astype(np.uint8)
+    padding = 1
+    temp = cv2.copyMakeBorder(img, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=0)
+    for r in range(padding,img.shape[0]):
+        for c in range(padding,img.shape[1]):
+            if temp[r,c]==0: continue
+            if np.min(img[r-padding:r+padding+1, c-padding:c+padding+1])==0:
+                cnt[r,c]=255
+    return cnt
