@@ -1,6 +1,6 @@
 [PARAMETERS]
 top_dir=hw5images
-img_type=fountain
+img_type=circle
 output=hw5outputs
 img_count=5
 mode=LM

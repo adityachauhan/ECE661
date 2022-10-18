@@ -26,8 +26,11 @@ def bgr2gray(img):
 def cvrt2homo(pt):
     return np.append(pt, 1)
 
-def cv2show(img):
-    cv2.imshow('img',img)
+def gauss_blur(img, kernel_size=5):
+    blur = cv2.GaussianBlur(img, (kernel_size, kernel_size), 0)
+    return blur
+def cv2show(img, name):
+    cv2.imshow(name,img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
@@ -55,6 +58,9 @@ def save_img(name, path, img):
     img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     cv2.imwrite(img_path, img)
 
+def save_img_v2(name, path, img):
+    img_path = os.path.join(path, name)
+    cv2.imwrite(img_path, img)
 def xpeqhx(x,y,h):
     X = np.array((x, y, 1))
     X_prime = np.matmul(h, X)
@@ -498,7 +504,6 @@ def histogram(img, bins):
     return hist
 
 def otsu(img, bins, hist):
-    # hist = histogram(img, bins)
     p = hist/np.sum(hist)
     ip=np.arange(1,bins+1)
     mu = np.multiply(p,ip)
@@ -512,20 +517,36 @@ def otsu(img, bins, hist):
             mu1 = (mut-mu0)/w1
             sigmab[k]=(w0*w1*((mu1-mu0)**2))
     ks = np.argmax(sigmab)
+    print(ks)
     _,thresh = cv2.threshold(img, ks, 255, cv2.THRESH_BINARY)
-    _,thresh_inv = cv2.threshold(img, ks, 255, cv2.THRESH_BINARY_INV)
+    _,thresh_inv = cv2.threshold(img, ks, 255, cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
     return thresh, thresh_inv
+
+
 
 def otsu_rgb(img, bins):
     channels = cv2.split(img)
-    comb = np.ones(channels[0].shape).astype(np.uint8)*255
-    for channel in channels:
-        hist = histogram(channel, bins)
-        thresh, thresh_inv = otsu(channel, bins, hist)
-        comb = cv2.bitwise_and(comb, thresh)
-    return comb
+    chcount = len(channels) if len(channels)==3 else 3
+    comb = np.zeros(np.append(channels[0].shape, chcount))*255
+    combinv = np.zeros(np.append(channels[0].shape, chcount))*255
+    for i in range(len(channels)):
+        hist = histogram(channels[i], bins)
+        thresh, thresh_inv = otsu(channels[i], bins, hist)
+        combinv[:,:,i] = thresh_inv
+        comb[:,:,i] = thresh
+        # comb = cv2.bitwise_and(comb, thresh_inv)
+    return comb, combinv
 
-def otsu_texture(img, bins, window_sizes):
+def channel_and(channels):
+    img = cv2.bitwise_and(cv2.bitwise_and(channels[:,:,0], channels[:,:,1]), channels[:,:,2])
+    return img
+
+def channel_and_v2(c1,c2,c3):
+    img = cv2.bitwise_and(cv2.bitwise_and(c1,c2),c3)
+    return img
+
+
+def otsu_texture(img, window_sizes):
     comb = np.zeros(np.append(img.shape, len(window_sizes)))
     for idx in range(len(window_sizes)):
         padding = window_sizes[idx]//2
@@ -533,10 +554,9 @@ def otsu_texture(img, bins, window_sizes):
         for r in range(img.shape[0]):
             for c in range(img.shape[1]):
                 win = temp[r:r+(2*padding+1),c:c+(2*padding+1)]
-                comb[r,c,idx] = np.var(win)
+                comb[r,c,idx] = np.var(win-np.mean(win))
     comb=comb.astype(np.uint8)
     return comb
-
 def contour(img):
     cnt = np.zeros(img.shape).astype(np.uint8)
     padding = 1
@@ -546,4 +566,28 @@ def contour(img):
             if temp[r,c]==0: continue
             if np.min(img[r-padding:r+padding+1, c-padding:c+padding+1])==0:
                 cnt[r,c]=255
+    cnt = cv2.bitwise_not(cnt)
     return cnt
+
+
+def dilate(img, kernel_size=5):
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    img = cv2.dilate(img, kernel, iterations=1)
+    return img
+
+def erode(img, kernel_size=5):
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    img = cv2.erode(img, kernel, iterations=1)
+    return img
+
+def opening(img, kd, ke, num):
+    for _ in range(num):
+        img = dilate(img, kd)
+        img = erode(img, ke)
+    return img
+
+def closing(img, kd, ke, num):
+    for _ in range(num):
+        img = erode(img, ke)
+        img = dilate(img, kd)
+    return img

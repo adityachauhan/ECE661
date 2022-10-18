@@ -1,10 +1,11 @@
 import configparser
+import glob
 import os
 
 from vision import *
 import argparse
 config = configparser.ConfigParser()
-config.read('hw3config.txt')
+config.read('hw6config.txt')
 def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
     # dim = None
     (h, w) = image.shape[:2]
@@ -21,8 +22,9 @@ def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
     return resized
 
 if __name__=='__main__':
-    x_img_path = os.path.join(config['PARAMETERS']['top_dir'], config['PARAMETERS']['x_path'])
-    img=cv2.imread(x_img_path)
+    x_img_path = os.path.join(config['PARAMETERS']['top_dir'])
+    img=cv2.imread(glob.glob(x_img_path+'/*.jpg')[0])
     img = image_resize(img, width=600)
-    # img_path = x_img_path
-    cv2.imwrite(x_img_path, img)
+    imgname = 'som.jpg'
+    img_path = os.path.join(x_img_path, imgname)
+    cv2.imwrite(img_path, img)
