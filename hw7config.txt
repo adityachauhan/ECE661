@@ -1,0 +1,8 @@
+[PARAMETERS]
+top_dir=HW7Auxilliary
+data_dir=data
+training_dir=training
+testing_dir=testing
+output=hw7outputs
+bins=256
+classes=cloudy,rain,shine,sunrise

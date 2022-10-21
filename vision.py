@@ -3,7 +3,6 @@ import os
 import random
 from scipy.optimize import least_squares
 
-
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +11,7 @@ from einops import rearrange
 from tqdm import trange, tqdm
 from scipy.signal import convolve2d
 import sys
+import BitVector
 
 def readImgCV(path):
     img = cv2.imread(path)
@@ -34,6 +34,10 @@ def cv2show(img, name):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
+
+def resize(img, size):
+    img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+    return img
 def pltshow(img):
     plt.imshow(img)
     plt.show()
@@ -592,3 +596,81 @@ def closing(img, kd, ke, num):
         img = dilate(img, kd)
     return img
 
+def make_border(img, padding, value=0):
+    img = cv2.copyMakeBorder(img, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=value)
+    return img
+def LBP(img, size=(64,64), R=1, P=8):
+    h,w=img.shape[0], img.shape[1]
+    gray = bgr2gray(img)
+    gray = resize(gray, size)
+    # cv2show(gray, 'gray')
+    padding=1
+    gray = make_border(gray, padding)
+    hist = [0 for _ in range(P+1)]
+    for i in range(padding, gray.shape[0]-1):
+        for j in range(padding, gray.shape[1]-1):
+            win = gray[i-padding:i+padding+1, j-padding:j+padding+1]
+            intensities = interpolate(win,R,P)
+            # print(intensities)
+            pattern = np.where(intensities >= gray[i,j],1,0)
+            # print(pattern)
+            enc = encode(pattern, P)
+            # print(enc)
+            hist[enc-1]+=1
+
+    return hist
+
+
+
+def interpolate(win,R=1,P=8):
+    X = np.cos(np.array([(np.pi / (P / 2)) * p for p in range(P)])) * R
+    Y = np.sin(np.array([(np.pi / (P / 2)) * p for p in range(P)])) * R
+    vals = [0 for _ in range(P)]
+    print(X)
+    print(Y)
+    for i in range(1,len(X),2):
+        p1 = np.array((int(np.floor(1+X[i])), int(np.floor(1+Y[i]))))
+        p2 = np.array((int(np.ceil(1+X[i])), int(np.floor(1+Y[i]))))
+        p3 = np.array((int(np.floor(1+X[i])), int(np.ceil(1+Y[i]))))
+        p4 = np.array((int(np.ceil(1+X[i])), int(np.ceil(1+Y[i]))))
+        print("points",p1,p2,p3,p4)
+        p = np.array((X[i], Y[i]))
+        # if i ==1 or i==5:
+        #     p = np.array((X[i],Y[i]))
+        # else:
+        #     p = np.array((1 - X[i], 1 - Y[i]))
+        print("p",p)
+        d1 = np.linalg.norm(p1-p)
+        d2 = np.linalg.norm(p2-p)
+        d3 = np.linalg.norm(p3-p)
+        d4 = np.linalg.norm(p4-p)
+        print("distances",d1,d2,d3,d4)
+        inten = d1*win[p1[0],p1[1]] + d2*win[p2[0],p2[1]] + d3*win[p3[0],p3[1]] + d4*win[p4[0],p4[1]]
+        inten/=(d1+d2+d3+d4+1e-16)
+        vals[i] = inten
+    vals[0] = win[2,1]
+    vals[2] = win[1,2]
+    vals[4] = win[0,1]
+    vals[6] = win[1,0]
+    return np.array(vals)
+
+def encode(pattern,P):
+    # print(pattern)
+    pattern = pattern.tolist()
+    bv = BitVector.BitVector(bitlist=pattern)
+    val = [int(bv << 1) for _ in range(P)]
+    minbv = BitVector.BitVector(intVal = min(val), size=P)
+    runs = minbv.runs()
+    if len(runs)>2:
+        enc = P+1
+    elif len(runs) == 1 and runs[0][0]=='1':
+        enc = P
+    elif len(runs) == 1 and runs[0][0]=='0':
+        enc = 0
+    else:
+        enc = len(runs[1])
+    return enc
+
+
+
+# def
