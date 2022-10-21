@@ -558,15 +558,15 @@ def otsu_texture(img, window_sizes):
     comb=comb.astype(np.uint8)
     return comb
 def contour(img):
+    img = img//255
     cnt = np.zeros(img.shape).astype(np.uint8)
     padding = 1
     temp = cv2.copyMakeBorder(img, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=0)
     for r in range(padding,img.shape[0]):
         for c in range(padding,img.shape[1]):
             if temp[r,c]==0: continue
-            if np.min(img[r-padding:r+padding+1, c-padding:c+padding+1])==0:
+            if np.sum(img[r-padding:r+padding+1, c-padding:c+padding+1])<9:
                 cnt[r,c]=255
-    cnt = cv2.bitwise_not(cnt)
     return cnt
 
 
@@ -591,3 +591,4 @@ def closing(img, kd, ke, num):
         img = erode(img, ke)
         img = dilate(img, kd)
     return img
+
