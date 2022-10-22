@@ -12,10 +12,16 @@ from tqdm import trange, tqdm
 from scipy.signal import convolve2d
 import sys
 import BitVector
-
+from sklearn import svm
+from sklearn.metrics import confusion_matrix, \
+    plot_confusion_matrix, accuracy_score
+from HW7Auxilliary.vgg import VGG19
+from skimage import transform
 def readImgCV(path):
     img = cv2.imread(path)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    if img is not None:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    else: return None
     return img
 
 def bgr2rgb(img):
@@ -626,25 +632,25 @@ def interpolate(win,R=1,P=8):
     X = np.cos(np.array([(np.pi / (P / 2)) * p for p in range(P)])) * R
     Y = np.sin(np.array([(np.pi / (P / 2)) * p for p in range(P)])) * R
     vals = [0 for _ in range(P)]
-    print(X)
-    print(Y)
+    # print(X)
+    # print(Y)
     for i in range(1,len(X),2):
         p1 = np.array((int(np.floor(1+X[i])), int(np.floor(1+Y[i]))))
         p2 = np.array((int(np.ceil(1+X[i])), int(np.floor(1+Y[i]))))
         p3 = np.array((int(np.floor(1+X[i])), int(np.ceil(1+Y[i]))))
         p4 = np.array((int(np.ceil(1+X[i])), int(np.ceil(1+Y[i]))))
-        print("points",p1,p2,p3,p4)
+        # print("points",p1,p2,p3,p4)
         p = np.array((X[i], Y[i]))
         # if i ==1 or i==5:
         #     p = np.array((X[i],Y[i]))
         # else:
         #     p = np.array((1 - X[i], 1 - Y[i]))
-        print("p",p)
+        # print("p",p)
         d1 = np.linalg.norm(p1-p)
         d2 = np.linalg.norm(p2-p)
         d3 = np.linalg.norm(p3-p)
         d4 = np.linalg.norm(p4-p)
-        print("distances",d1,d2,d3,d4)
+        # print("distances",d1,d2,d3,d4)
         inten = d1*win[p1[0],p1[1]] + d2*win[p2[0],p2[1]] + d3*win[p3[0],p3[1]] + d4*win[p4[0],p4[1]]
         inten/=(d1+d2+d3+d4+1e-16)
         vals[i] = inten
@@ -672,5 +678,34 @@ def encode(pattern,P):
     return enc
 
 
+def getLabel(name):
+    label=0
+    if "cloudy" in name : label = 0
+    if "rain" in name : label = 1
+    if "shine" in name : label = 2
+    if "sunrise" in name : label = 3
+    return label
 
-# def
+def train(X_train,Y_train, X_test):
+    clf = svm.SVC()
+    clf.fit(X_train,Y_train)
+    Y_pred = clf.predict(X_test)
+    return Y_pred
+
+def evaluate(y_true, y_pred):
+    acc_score = accuracy_score(y_true, y_pred)
+    conf_matx = confusion_matrix(y_true, y_pred)
+
+    print("Model Accuracy: ", acc_score)
+    print("Confusion Matrix: ", conf_matx)
+
+def classify(X_train, Y_train, X_test, Y_test):
+    pred_labels = train(X_train, Y_train, X_test)
+    evaluate(Y_test, pred_labels)
+
+def vgg_feature_extractor(img, model_path, size=(256,256)):
+    vgg = VGG19()
+    vgg.load_weights(model_path)
+    img = transform.resize(img, size)
+    feature = vgg(img)
+    return feature

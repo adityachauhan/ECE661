@@ -6,3 +6,6 @@ testing_dir=testing
 output=hw7outputs
 bins=256
 classes=cloudy,rain,shine,sunrise
+vgg_model=vgg_normalized.pth
+number_gram_samples=1024
+vgg_channels=512
