@@ -641,15 +641,11 @@ def interpolate(win,R=1,P=8):
         p4 = np.array((int(np.ceil(1+X[i])), int(np.ceil(1+Y[i]))))
         # print("points",p1,p2,p3,p4)
         p = np.array((X[i], Y[i]))
-        # if i ==1 or i==5:
-        #     p = np.array((X[i],Y[i]))
-        # else:
-        #     p = np.array((1 - X[i], 1 - Y[i]))
-        # print("p",p)
-        d1 = np.linalg.norm(p1-p)
-        d2 = np.linalg.norm(p2-p)
-        d3 = np.linalg.norm(p3-p)
-        d4 = np.linalg.norm(p4-p)
+        
+        d1 = 1/np.linalg.norm(p1-p)
+        d2 = 1/np.linalg.norm(p2-p)
+        d3 = 1/np.linalg.norm(p3-p)
+        d4 = 1/np.linalg.norm(p4-p)
         # print("distances",d1,d2,d3,d4)
         inten = d1*win[p1[0],p1[1]] + d2*win[p2[0],p2[1]] + d3*win[p3[0],p3[1]] + d4*win[p4[0],p4[1]]
         inten/=(d1+d2+d3+d4+1e-16)
