@@ -27,6 +27,8 @@ def main():
     testing_dir = os.path.join(top_dir,data_dir,testing_dir)
     training_data = glob.glob(training_dir+'/*.jpg')
     testing_data = glob.glob(testing_dir+'/*.jpg')
+    classes = config['PARAMETERS']['classes']
+    classes = classes.split(',')
     random_samples = random.sample(range(vgg_channels*vgg_channels), number_gram_samples)
     labels_train=[]
     labels_test=[]
@@ -59,7 +61,9 @@ def main():
         else:
             print("Cant open testing file: ", testing_data[i])
 
-    classify(G_train_set, labels_train, G_test_set, labels_test)
+    output = config['PARAMETERS']['output']
+    conf_plot_path = os.path.join(output, 'GramMatrixConfMat.png')
+    classify(G_train_set, labels_train, G_test_set, labels_test, conf_plot_path, classes)
 
 
 

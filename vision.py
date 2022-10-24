@@ -14,7 +14,7 @@ import sys
 import BitVector
 from sklearn import svm
 from sklearn.metrics import confusion_matrix, \
-    plot_confusion_matrix, accuracy_score
+    ConfusionMatrixDisplay, accuracy_score
 from HW7Auxilliary.vgg import VGG19
 from skimage import transform
 def readImgCV(path):
@@ -692,16 +692,24 @@ def train(X_train,Y_train, X_test):
     Y_pred = clf.predict(X_test)
     return Y_pred
 
-def evaluate(y_true, y_pred):
+def display_conf_mat(conf_mat, labels, path, acc_str):
+    disp = ConfusionMatrixDisplay(confusion_matrix=conf_mat, display_labels=labels)
+    disp.plot()
+    plt.title("Accuracy :" + acc_str)
+    plt.savefig(path)
+    plt.show()
+def evaluate(y_true, y_pred, path, labels):
     acc_score = accuracy_score(y_true, y_pred)
     conf_matx = confusion_matrix(y_true, y_pred)
-
     print("Model Accuracy: ", acc_score)
+    acc_str = str(acc_score*100) + " %"
     print("Confusion Matrix: ", conf_matx)
+    # labels = [i for i in range(4)]
+    display_conf_mat(conf_matx, labels, path, acc_str)
 
-def classify(X_train, Y_train, X_test, Y_test):
+def classify(X_train, Y_train, X_test, Y_test, path, labels):
     pred_labels = train(X_train, Y_train, X_test)
-    evaluate(Y_test, pred_labels)
+    evaluate(Y_test, pred_labels, path, labels)
 
 def vgg_feature_extractor(img, model_path, size=(256,256)):
     vgg = VGG19()
@@ -709,3 +717,13 @@ def vgg_feature_extractor(img, model_path, size=(256,256)):
     img = transform.resize(img, size)
     feature = vgg(img)
     return feature
+
+def channelNorm(features):
+    features = rearrange(features, 'c h w -> c (h w)')
+    mu = np.mean(features, axis=1)
+    var = np.var(features, axis=1)
+    texture_des = np.zeros(mu.shape[0]+var.shape[0], dtype=mu.dtype)
+    texture_des[::2] = mu
+    texture_des[1::2] = var
+    return texture_des
+
