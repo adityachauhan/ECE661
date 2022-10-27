@@ -22,12 +22,22 @@ def main():
     testing_dir = os.path.join(top_dir,data_dir,testing_dir)
     training_data = glob.glob(training_dir+'/*.jpg')
     testing_data = glob.glob(testing_dir+'/*.jpg')
+    output = config['PARAMETERS']['output']
+
+
     classes = config['PARAMETERS']['classes']
     classes = classes.split(',')
     histograms_train = []
     labels_train = []
     histograms_test = []
     labels_test = []
+
+    plotting_dir = config['PARAMETERS']['plotting_dir']
+    plotting_dir = os.path.join(top_dir, data_dir, plotting_dir)
+    plotting_data = glob.glob(plotting_dir+'/*.jpg')
+    histograms_plotting = []
+    labels_plotting = []
+
     for i in trange(len(training_data)):
         img = readImgCV(training_data[i])
         if img is not None:
@@ -49,7 +59,20 @@ def main():
         else:
             print("Can't open testing file: ", testing_data[i])
 
-    output = config['PARAMETERS']['output']
+    for i in trange(len(plotting_data)):
+        img = readImgCV(plotting_data[i])
+        if img is not None:
+            name = plotting_data[i].split('.')[0].split('/')[-1]
+            hist_path = os.path.join(output, name+"_LBP_hist.png")
+            labels_plotting.append(getLabel(name))
+            hist = LBP(img)
+            print(hist)
+            plthist(hist, np.arange(9), hist_path)
+            histograms_plotting.append(hist)
+        else:
+            print("Can't open testing file: ", plotting_data[i])
+
+
     conf_plot_path = os.path.join(output, 'LBPConfMat.png')
     classify(histograms_train, labels_train, histograms_test, labels_test, conf_plot_path, classes)
 

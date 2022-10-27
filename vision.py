@@ -502,8 +502,10 @@ def findmaxmin(ho,wo,h):
     hpa = max(hpa1, max(hpa2, max(hpa3, hpa4)))
     return wpa, hpa
 
-def plthist(hist, bins):
-    plt.bar(bins, hist, color='b', width=5, align='center', alpha=0.25)
+def plthist(hist, bins, path=None):
+    plt.bar(bins, hist, color='b', width=1, align='center', alpha=1)
+    if path is not None:
+        plt.savefig(path)
     plt.show()
 def histogram(img, bins):
     h,w = img.shape[0],img.shape[1]
