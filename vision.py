@@ -119,6 +119,7 @@ def make_line_hc(pts1, pts2):
     l = np.cross(cvrt2homo(pts1), cvrt2homo(pts2))
     return l
 
+
 class Vision:
     def __init__(self, x, x_prime, homo_mat_size=3):
         self.x = x
@@ -459,7 +460,7 @@ def Jacobian(pts, h):
 
     return J
 
-#Followed from the pseudo-code by levmar
+#Followed from the pseudocode by levmar
 def LevMar(H, pts1, pts2):
     I = np.identity(9)
     tau = 0.5
@@ -725,5 +726,82 @@ def channelNorm(features):
     texture_des[1::2] = var
     return texture_des
 
+def cannyEdge(img):
+    gray = bgr2gray(img)
+    gray = gauss_blur(gray, 5)
+    edgeMap = cv2.Canny(gray, 50,200,None,3)
+    return edgeMap
+
+def houghLines(edgeMap):
+    lines = cv2.HoughLines(edgeMap,1, np.pi/180, 20, None, 0, 0)
+def houghLinesP(edgeMap):
+    lines = cv2.HoughLinesP(edgeMap, 1, np.pi/180, 20, None, 15, 15)
+    return lines
+
+def plotLinesP(lines, img):
+    for i in range(len(lines)):
+        l = lines[i][0]
+        cv2.line(img, (l[0], l[1]), (l[2], l[3]), (0, 0, 255), 1, cv2.LINE_AA)
+    return img
+
+def getIntersectionPoint(l1, l2):
+    pts = np.cross(l1, l2)
+    if pts[2] > 0:
+        pts = pts/pts[2]
+        return np.array([int(pts[0]), int(pts[1])])
+    return np.array((0,0))
+def findCorner(lines, img):
+    pts = []
+    h,w,c = img.shape
+    padding=10
+    for i in range(len(lines)-1):
+        l1 = lines[i][0]
+        l1_hc = make_line_hc(np.array((l1[0], l1[1])), np.array((l1[2], l1[3])))
+        for j in range(len(lines)):
+            l2 = lines[j][0]
+            l2_hc = make_line_hc(np.array((l2[0], l2[1])), np.array((l2[2], l2[3])))
+            pt = getIntersectionPoint(l1_hc, l2_hc)
+
+            if pt[0] > padding and pt[0] < w-padding and pt[1] > padding and pt[1] < h-padding:
+                pts.append(pt)
+
+    pts = np.array(pts)
+    return pts
+
+def pointNeighbours(pt, R):
+    p1 = (pt[0], pt[1]+R)
+    p2 = (pt[0]+R, pt[1]+R)
+    p3 = (pt[0]+R, pt[1])
+    p4 = (pt[0]+R, pt[1]-R)
+    p5 = (pt[0], pt[1]-R)
+    p6 = (pt[0]-R, pt[1]-R)
+    p7 = (pt[0]-R, pt[1])
+    p8 = (pt[0]-R, pt[1]+R)
+    return [p1, p2, p3, p4, p5, p6, p7, p8]
+def refinePts(pts, dist_thresh):
+    idx1=[]
+    idx2=[]
+    idx = [[] for _ in range(len(pts))]
+    refined_pts=[]
+    for i in range(len(pts)-1):
+        for j in range(i+1,len(pts)):
+            if j not in idx2 and j not in idx1 and (pts[j][0]-pts[i][0])**2 + (pts[j][1]-pts[i][1])**2 <= dist_thresh**2:
+                idx1.append(i)
+                idx2.append(j)
+                idx[i].append(j)
 
 
+    for k in range(len(idx)):
+        if len(idx[k])>0:
+            pass
+    print(len(pts))
+    print(len(idx1))
+    print(len(idx2))
+
+
+
+def plotPoints(pts, img):
+    for pt in pts:
+        cv2.circle(img, (pt[0], pt[1]), radius=3, color=(255, 0, 0), thickness=-1)
+
+    return img

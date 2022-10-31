@@ -1,0 +1,5 @@
+[PARAMETERS]
+top_dir=hw8images
+data_dir=Dataset1
+plotting_dir=plotting
+output=hw8outputs
