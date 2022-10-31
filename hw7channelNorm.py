@@ -33,7 +33,10 @@ def main():
     labels_test=[]
     texture_des_train_set=[]
     texture_des_test_set=[]
+    output = config['PARAMETERS']['output']
+
     model_path = os.path.join(top_dir, config['PARAMETERS']['vgg_model'])
+
     for i in trange(len(training_data)):
         img = readImgCV(training_data[i])
         if img is not None:
@@ -55,7 +58,8 @@ def main():
             texture_des_test_set.append(texture_des)
         else:
             print("Cant open testing file: ", testing_data[i])
-    output = config['PARAMETERS']['output']
+
+
     conf_plot_path = os.path.join(output, 'channelNormConfMat.png')
     classify(texture_des_train_set, labels_train, texture_des_test_set, labels_test, conf_plot_path, classes)
 

@@ -34,6 +34,15 @@ def main():
     labels_test=[]
     G_train_set=[]
     G_test_set=[]
+
+    plotting_dir = config['PARAMETERS']['plotting_dir']
+    plotting_dir = os.path.join(top_dir, data_dir, plotting_dir)
+    plotting_data = glob.glob(plotting_dir + '/*.jpg')
+    labels_plotting = []
+
+    output = config['PARAMETERS']['output']
+
+
     model_path = os.path.join(top_dir, config['PARAMETERS']['vgg_model'])
     for i in trange(len(training_data)):
         img = readImgCV(training_data[i])
@@ -61,7 +70,20 @@ def main():
         else:
             print("Cant open testing file: ", testing_data[i])
 
-    output = config['PARAMETERS']['output']
+    for i in trange(len(plotting_data)):
+        img = readImgCV(plotting_data[i])
+        if img is not None:
+            name = plotting_data[i].split('.')[0].split('/')[-1]
+            labels_plotting.append(getLabel(name))
+            feature = vgg_feature_extractor(img, model_path)
+            feature = rearrange(feature, 'c h w -> (h w) c')
+            G = feature.T @ feature
+            img_name = name+"_gram_matrix.png"
+            cv2show(G, img_name)
+            save_img_v2(img_name, output, G)
+        else:
+            print("Can't open testing file: ", plotting_data[i])
+
     conf_plot_path = os.path.join(output, 'GramMatrixConfMat.png')
     classify(G_train_set, labels_train, G_test_set, labels_test, conf_plot_path, classes)
 
