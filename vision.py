@@ -793,11 +793,12 @@ def refinePts(pts, dist_thresh):
 
     for k in range(len(idx)):
         if len(idx[k])>0:
-            pass
-    print(len(pts))
-    print(len(idx1))
-    print(len(idx2))
+            x_coord = int(np.mean(np.append(pts[k][0], pts[idx[k]][:,0])))
+            y_coord = int(np.mean(np.append(pts[k][1], pts[idx[k]][:,1])))
+            refined_pts.append((x_coord, y_coord))
 
+    print(len(refined_pts))
+    return refined_pts
 
 
 def plotPoints(pts, img):

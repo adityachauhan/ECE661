@@ -25,9 +25,9 @@ def main():
         img_edges = cannyEdge(img)
         lines = houghLinesP(img_edges)
         corners = findCorner(lines, img)
-        refinePts(corners,5)
-        # img = plotPoints(corners, img)
-        # cv2show(img, "corners")
+        refined_pts = refinePts(corners,20)
+        img = plotPoints(refined_pts, img)
+        cv2show(img, "corners")
 
 
 if __name__ == '__main__':
