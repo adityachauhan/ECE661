@@ -17,6 +17,10 @@ from sklearn.metrics import confusion_matrix, \
     ConfusionMatrixDisplay, accuracy_score
 from HW7Auxilliary.vgg import VGG19
 from skimage import transform
+import math
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
+
 def readImgCV(path):
     img = cv2.imread(path)
     if img is not None:
@@ -728,14 +732,15 @@ def channelNorm(features):
 
 def cannyEdge(img):
     gray = bgr2gray(img)
-    gray = gauss_blur(gray, 5)
-    edgeMap = cv2.Canny(gray, 50,200,None,3)
+    gray=gauss_blur(gray, 3)
+    edgeMap = cv2.Canny(gray, 300,300,None,3)
     return edgeMap
 
 def houghLines(edgeMap):
     lines = cv2.HoughLines(edgeMap,1, np.pi/180, 20, None, 0, 0)
+    return lines
 def houghLinesP(edgeMap):
-    lines = cv2.HoughLinesP(edgeMap, 1, np.pi/180, 20, None, 15, 15)
+    lines = cv2.HoughLinesP(edgeMap, 1, np.pi/180, 15, None, 15, 15)
     return lines
 
 def plotLinesP(lines, img):
@@ -744,6 +749,13 @@ def plotLinesP(lines, img):
         cv2.line(img, (l[0], l[1]), (l[2], l[3]), (0, 0, 255), 1, cv2.LINE_AA)
     return img
 
+def cv2HarrisCorner(img):
+    gray = bgr2gray(img)
+    gray = cv2.cornerHarris(gray,2,3,0.04)
+    gray = cv2.dilate(gray, None)
+    corners = np.argwhere(gray > 0.01 * gray.max())
+    img[gray > 0.01 * gray.max()] = [0, 0, 255]
+    return corners, img
 def getIntersectionPoint(l1, l2):
     pts = np.cross(l1, l2)
     if pts[2] > 0:
@@ -784,25 +796,64 @@ def refinePts(pts, dist_thresh):
     idx = [[] for _ in range(len(pts))]
     refined_pts=[]
     for i in range(len(pts)-1):
-        for j in range(i+1,len(pts)):
-            if j not in idx2 and j not in idx1 and (pts[j][0]-pts[i][0])**2 + (pts[j][1]-pts[i][1])**2 <= dist_thresh**2:
-                idx1.append(i)
-                idx2.append(j)
-                idx[i].append(j)
+        if i not in idx2 and i not in idx1:
+            for j in range(i+1,len(pts)):
+            # print(i, j, math.dist([pts[i][0], pts[i][1]], [pts[j][0], pts[j][1]]))
+                if j not in idx2 and j not in idx1 and (pts[j][0]-pts[i][0])**2 + (pts[j][1]-pts[i][1])**2 <= dist_thresh**2:
+                # if j not in idx2 and j not in idx1 and math.dist([pts[i][0], pts[i][1]],[pts[j][0], pts[j][1]]) <= dist_thresh :
+                    idx1.append(i)
+                    idx2.append(j)
+                    idx[i].append(j)
 
-
+    # print(idx)
     for k in range(len(idx)):
         if len(idx[k])>0:
+            # print(pts[idx[k]])
             x_coord = int(np.mean(np.append(pts[k][0], pts[idx[k]][:,0])))
             y_coord = int(np.mean(np.append(pts[k][1], pts[idx[k]][:,1])))
             refined_pts.append((x_coord, y_coord))
 
-    print(len(refined_pts))
-    return refined_pts
+    return refined_pts, len(refined_pts)
 
-
-def plotPoints(pts, img):
+def refineBorderBased(edgeMap, pts, img):
+    refined_pts=[]
+    idxs = np.where(edgeMap==255)
+    edge_pts = np.column_stack((idxs[1], idxs[0]))
+    minX = np.argmin(idxs[1])
+    maxX = np.argmax(idxs[1])
+    minY = np.argmin(idxs[0])
+    maxY = np.argmax(idxs[0])
+    print(minX, maxX, minY, maxY)
+    print(edge_pts[minX], edge_pts[maxX], edge_pts[minY], edge_pts[maxY])
+    polygon = Polygon([edge_pts[minX], edge_pts[maxY], edge_pts[maxX], edge_pts[minY]])
     for pt in pts:
-        cv2.circle(img, (pt[0], pt[1]), radius=3, color=(255, 0, 0), thickness=-1)
+        point = Point(pt)
+        if polygon.contains(point):
+            refined_pts.append(pt)
+    return refined_pts, len(refined_pts)
+
+def refineAreaBase(img):
+    gray = bgr2gray(img)
+    gray = gauss_blur(gray, 11)
+    hist = histogram(gray, bins=256)
+    thresh, inv_thresh = otsu(gray, bins=256, hist=hist)
+    inv_thresh = inv_thresh.astype(np.uint8)
+    cnt = cv2.Canny(inv_thresh, 300,300,None,3)
+    cv2show(cnt, "thresh")
+    return cnt
+
+def plotPoints(pts, img, mode):
+    count=1
+    if mode == "harris":
+        for pt in pts:
+            cv2.circle(img, (pt[1], pt[0]), radius=2, color=(255, 0, 0), thickness=-1)
+            cv2.putText(img, str(count), (pt[1], pt[0]), cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 0), 1, cv2.LINE_AA)
+            count+=1
+    else:
+        for pt in pts:
+            cv2.circle(img, (pt[0], pt[1]), radius=2, color=(255, 0, 0), thickness=-1)
+            cv2.putText(img, str(count), (pt[0], pt[1]), cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 0), 1, cv2.LINE_AA)
+            count += 1
 
     return img
+
