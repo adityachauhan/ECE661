@@ -20,7 +20,7 @@ def main():
     data_dir = os.path.join(top_dir, data_dir)
     image_paths = glob.glob(data_dir+'/*.jpg')
     num_images = len(image_paths)
-    for i in range(1):
+    for i in range(2):
         img = readImgCV(image_paths[i])
         img_edges = cannyEdge(img)
         lines = houghLinesP(img_edges)
