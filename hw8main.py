@@ -42,8 +42,8 @@ def main():
         orig_img = np.copy(img)
         img_edges = cannyEdge(img)
         lines = houghLinesP(img_edges)
-        corners = findCorner(lines, img)
-        refined_pts, num_pts = refinePts(corners,20)
+        corners = findCornerP(lines, img)
+        refined_pts, num_pts = refinePtsP(corners,20)
         # refined_pts, num_pts = refinePts(refined_pts,10)
         mode = "canny+hough"
         # if num_pts < 80:

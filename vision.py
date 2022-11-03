@@ -730,24 +730,120 @@ def channelNorm(features):
     texture_des[1::2] = var
     return texture_des
 
-def cannyEdge(img):
+def cannyEdge(img, blur=False):
     gray = bgr2gray(img)
-    gray=gauss_blur(gray, 3)
+    if blur:
+        gray=gauss_blur(gray, 3)
     edgeMap = cv2.Canny(gray, 300,300,None,3)
     return edgeMap
 
 def houghLines(edgeMap):
-    lines = cv2.HoughLines(edgeMap,1, np.pi/180, 20, None, 0, 0)
-    return lines
+    lines = cv2.HoughLines(edgeMap,1, np.pi/180, 48)
+    pts = []
+    for line in lines:
+        rho, theta = line[0]
+        a = np.cos(theta)
+        b = np.sin(theta)
+        x0 = a * rho
+        y0 = b * rho
+        x1 = int(x0 + 1000 * (-b))
+        y1 = int(y0 + 1000 * (a))
+        x2 = int(x0 - 1000 * (-b))
+        y2 = int(y0 - 1000 * (a))
+        pts.append([x1, y1, x2, y2])
+    return pts
 def houghLinesP(edgeMap):
     lines = cv2.HoughLinesP(edgeMap, 1, np.pi/180, 15, None, 15, 15)
     return lines
+
+def calcAngle(m1,m2):
+    return np.arctan((m1-m2)/(1+(m1*m2)))
+def filterLines(lines):
+    l1 = lines[0]
+    l1_hc = make_line_hc(np.array((l1[0], l1[1])), np.array((l1[2], l1[3])))
+    m1 = -l1_hc[0] / (l1_hc[1] + 1e-6)
+    type1 = []
+    type1.append(l1)
+    type2 = []
+    for i in range(1,len(lines)):
+        l = lines[i]
+        l_hc = make_line_hc(np.array((l[0], l[1])), np.array((l[2], l[3])))
+        m = -l_hc[0] / (l_hc[1] + 1e-6)
+        angle = calcAngle(m,m1)
+        if (angle**2) <= (np.pi/4)**2:
+            type1.append(l)
+        elif (angle**2) > (np.pi/4)**2:
+            type2.append(l)
+    print(len(type1), len(type2))
+    return type1, type2
+
+
+def clubLines(lines, img):
+    print(len(lines))
+    h,w,c=img.shape
+    polygon = Polygon([(0, 0), (0, w), (h, w), (h, 0)])
+    idx = [[] for _ in range(len(lines))]
+    idxs = []
+    for i in range(len(lines)-1):
+        l1 = lines[i]
+        l1_hc = make_line_hc(np.array((l1[0], l1[1])), np.array((l1[2], l1[3])))
+        for j in range(i+1,len(lines)):
+            l2 = lines[j]
+            l2_hc = make_line_hc(np.array((l2[0], l2[1])), np.array((l2[2], l2[3])))
+            pt = getIntersectionPoint(l1_hc, l2_hc)
+            point = Point(pt)
+            if polygon.contains(point):
+                print(pt)
+                idxs.append(j)
+
+    refined_lines =[]
+    for i in range(len(lines)):
+        if i not in idxs:
+            refined_lines.append(lines[i])
+    print(refined_lines)
+    print(len(refined_lines))
+    return refined_lines
+
+from sklearn.cluster import KMeans
+from sklearn.datasets import make_blobs
+def refineLines(lines, type = "v"):
+    x_hc = np.array((0,1,0))
+    y_hc = np.array((1,0,0))
+    intersections = []
+    data = []
+    for i in range(len(lines)):
+        l=lines[i]
+        l_hc = make_line_hc(np.array((l[0], l[1])), np.array((l[2], l[3])))
+        if type=="v":
+            pt = getIntersectionPoint(l_hc, x_hc)
+        else:
+            pt = getIntersectionPoint(l_hc, y_hc)
+        intersections.append((i, pt[0]))
+        data.append(pt[0])
+    data=np.array(data)
+    data = data.reshape(-1,1)
+    # X = make_blobs(n_samples=len(lines), centers=8, random_state=1)
+    clusters = KMeans(n_clusters=8)
+    clusters.fit(data)
+    print(clusters.cluster_centers_)
+    print(data)
+    print(clusters.predict(data))
+
+
+
 
 def plotLinesP(lines, img):
     for i in range(len(lines)):
         l = lines[i][0]
         cv2.line(img, (l[0], l[1]), (l[2], l[3]), (0, 0, 255), 1, cv2.LINE_AA)
     return img
+
+def plotLines(lines, img):
+    for i in range(len(lines)):
+        l = lines[i]
+        cv2.line(img, (l[0], l[1]), (l[2], l[3]), (0, 255, 255), 1, cv2.LINE_AA)
+    return img
+
 
 def cv2HarrisCorner(img):
     gray = bgr2gray(img)
@@ -762,7 +858,7 @@ def getIntersectionPoint(l1, l2):
         pts = pts/pts[2]
         return np.array([int(pts[0]), int(pts[1])])
     return np.array((0,0))
-def findCorner(lines, img):
+def findCornerP(lines, img):
     pts = []
     h,w,c = img.shape
     padding=10
@@ -780,6 +876,27 @@ def findCorner(lines, img):
     pts = np.array(pts)
     return pts
 
+def findCorner(lines, img):
+    pts = []
+    h,w,c = img.shape
+    padding=10
+    for i in range(len(lines)-1):
+        l1 = lines[i]
+        l1_hc = make_line_hc(np.array((l1[0], l1[1])), np.array((l1[2], l1[3])))
+        for j in range(len(lines)):
+            l2 = lines[j]
+            l2_hc = make_line_hc(np.array((l2[0], l2[1])), np.array((l2[2], l2[3])))
+            pt = getIntersectionPoint(l1_hc, l2_hc)
+
+            if pt[0] > padding and pt[0] < w-padding and pt[1] > padding and pt[1] < h-padding:
+                pts.append(pt)
+
+    pts = np.array(pts)
+    return pts
+
+
+
+
 def pointNeighbours(pt, R):
     p1 = (pt[0], pt[1]+R)
     p2 = (pt[0]+R, pt[1]+R)
@@ -790,7 +907,7 @@ def pointNeighbours(pt, R):
     p7 = (pt[0]-R, pt[1])
     p8 = (pt[0]-R, pt[1]+R)
     return [p1, p2, p3, p4, p5, p6, p7, p8]
-def refinePts(pts, dist_thresh):
+def refinePtsP(pts, dist_thresh):
     idx1=[]
     idx2=[]
     idx = [[] for _ in range(len(pts))]
@@ -815,6 +932,30 @@ def refinePts(pts, dist_thresh):
 
     return refined_pts, len(refined_pts)
 
+def refinePts(pts, dist_thresh):
+    idx1=[]
+    idx2=[]
+    idx = [[] for _ in range(len(pts))]
+    refined_pts=[]
+    for i in range(len(pts)-1):
+        if i not in idx2 and i not in idx1:
+            for j in range(len(pts)):
+                # print(i, j, math.dist([pts[i][0], pts[i][1]], [pts[j][0], pts[j][1]]))
+                # if j not in idx2 and j not in idx1 and (pts[j][0]-pts[i][0])**2 + (pts[j][1]-pts[i][1])**2 <= dist_thresh**2:
+                if j not in idx2 and j not in idx1 and math.dist([pts[i][0], pts[i][1]],[pts[j][0], pts[j][1]]) <= dist_thresh :
+                    idx1.append(i)
+                    idx2.append(j)
+                    idx[i].append(j)
+
+    # print(idx)
+    for k in range(len(idx)):
+        if len(idx[k])>0:
+            # print(pts[idx[k]])
+            x_coord = int(np.mean(np.append(pts[k][0], pts[idx[k]][:,0])))
+            y_coord = int(np.mean(np.append(pts[k][1], pts[idx[k]][:,1])))
+            refined_pts.append((x_coord, y_coord))
+
+    return refined_pts, len(refined_pts)
 def refineBorderBased(edgeMap, pts, img):
     refined_pts=[]
     idxs = np.where(edgeMap==255)
@@ -832,15 +973,8 @@ def refineBorderBased(edgeMap, pts, img):
             refined_pts.append(pt)
     return refined_pts, len(refined_pts)
 
-def refineAreaBase(img):
-    gray = bgr2gray(img)
-    gray = gauss_blur(gray, 11)
-    hist = histogram(gray, bins=256)
-    thresh, inv_thresh = otsu(gray, bins=256, hist=hist)
-    inv_thresh = inv_thresh.astype(np.uint8)
-    cnt = cv2.Canny(inv_thresh, 300,300,None,3)
-    cv2show(cnt, "thresh")
-    return cnt
+
+
 
 def plotPoints(pts, img, mode):
     count=1
