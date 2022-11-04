@@ -819,24 +819,18 @@ def refineLines(lines, type, lines_count):
     data = []
     for i in range(len(lines)):
         l=lines[i]
-        print(l)
         l_hc = make_line_hc(np.array((l[0], l[1])), np.array((l[2], l[3])))
-        print(l_hc)
         if type=="v":
             pt = getIntersectionPoint(l_hc, x_hc)
-            intersections.append((i, pt[0]))
             data.append(pt[0])
         elif type=="h":
             pt = getIntersectionPoint(l_hc, y_hc)
-            intersections.append((i, pt[1]))
             data.append(pt[1])
     data=np.array(data)
-    print(data)
     data = data.reshape(-1,1)
     clusters = KMeans(n_clusters=lines_count)
     clusters.fit(data)
     cluster_centers = clusters.cluster_centers_
-    # print(cluster_centers)
     cluster_idxs = clusters.predict(data)
     cluster_lines = [[] for _ in range(lines_count)]
     for i in range(len(cluster_idxs)):
@@ -845,7 +839,32 @@ def refineLines(lines, type, lines_count):
     refined_lines=[]
     for cluster_line in cluster_lines:
         refined_lines.append(cluster_line[0])
-    return refined_lines
+
+    for refined_line in refined_lines:
+        refined_line_hc = make_line_hc(np.array((refined_line[0], refined_line[1])), np.array((refined_line[2], refined_line[3])))
+        if type=="v":
+            pt = getIntersectionPoint(refined_line_hc, x_hc)
+            intersections.append((refined_line, pt[0]))
+        elif type=="h":
+            pt = getIntersectionPoint(refined_line_hc, y_hc)
+            intersections.append((refined_line, pt[1]))
+
+    sorted_refined_lines = np.array(sorted(intersections, key=lambda x:x[1]))[:,0].tolist()
+    return sorted_refined_lines
+
+
+def getCorners(vlines, hlines):
+    corners = []
+    for hl in hlines:
+        hl_hc = make_line_hc(np.array((hl[0], hl[1])), np.array((hl[2], hl[3])))
+        for vl in vlines:
+            vl_hc = make_line_hc(np.array((vl[0], vl[1])), np.array((vl[2], vl[3])))
+            pt = getIntersectionPoint(hl_hc, vl_hc)
+            corners.append(pt)
+
+    corners=np.array(corners)
+    return corners
+
 
 
 
@@ -857,10 +876,10 @@ def plotLinesP(lines, img):
         cv2.line(img, (l[0], l[1]), (l[2], l[3]), (0, 0, 255), 1, cv2.LINE_AA)
     return img
 
-def plotLines(lines, img):
+def plotLines(lines, img, color):
     for i in range(len(lines)):
         l = lines[i]
-        cv2.line(img, (l[0], l[1]), (l[2], l[3]), (0, 255, 255), 1, cv2.LINE_AA)
+        cv2.line(img, (l[0], l[1]), (l[2], l[3]), color, 2, cv2.LINE_AA)
     return img
 
 
