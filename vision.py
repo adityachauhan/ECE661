@@ -762,6 +762,12 @@ def filterLines(lines):
     l1 = lines[0]
     l1_hc = make_line_hc(np.array((l1[0], l1[1])), np.array((l1[2], l1[3])))
     m1 = -l1_hc[0] / (l1_hc[1] + 1e-6)
+    angle_x_axis = calcAngle(m1, 0)
+    if (angle_x_axis**2) <= (np.pi/4)**2:
+        type = "h"
+    elif (angle_x_axis ** 2) > (np.pi / 4) ** 2:
+        type = "v"
+
     type1 = []
     type1.append(l1)
     type2 = []
@@ -774,8 +780,8 @@ def filterLines(lines):
             type1.append(l)
         elif (angle**2) > (np.pi/4)**2:
             type2.append(l)
-    print(len(type1), len(type2))
-    return type1, type2
+    print(len(type1), len(type2), type)
+    return type1, type2, type
 
 
 def clubLines(lines, img):
@@ -806,28 +812,41 @@ def clubLines(lines, img):
 
 from sklearn.cluster import KMeans
 from sklearn.datasets import make_blobs
-def refineLines(lines, type = "v"):
+def refineLines(lines, type, lines_count):
     x_hc = np.array((0,1,0))
-    y_hc = np.array((1,0,0))
+    y_hc = np.array((-1,0,0))
     intersections = []
     data = []
     for i in range(len(lines)):
         l=lines[i]
+        print(l)
         l_hc = make_line_hc(np.array((l[0], l[1])), np.array((l[2], l[3])))
+        print(l_hc)
         if type=="v":
             pt = getIntersectionPoint(l_hc, x_hc)
-        else:
+            intersections.append((i, pt[0]))
+            data.append(pt[0])
+        elif type=="h":
             pt = getIntersectionPoint(l_hc, y_hc)
-        intersections.append((i, pt[0]))
-        data.append(pt[0])
+            intersections.append((i, pt[1]))
+            data.append(pt[1])
     data=np.array(data)
-    data = data.reshape(-1,1)
-    # X = make_blobs(n_samples=len(lines), centers=8, random_state=1)
-    clusters = KMeans(n_clusters=8)
-    clusters.fit(data)
-    print(clusters.cluster_centers_)
     print(data)
-    print(clusters.predict(data))
+    data = data.reshape(-1,1)
+    clusters = KMeans(n_clusters=lines_count)
+    clusters.fit(data)
+    cluster_centers = clusters.cluster_centers_
+    # print(cluster_centers)
+    cluster_idxs = clusters.predict(data)
+    cluster_lines = [[] for _ in range(lines_count)]
+    for i in range(len(cluster_idxs)):
+        cluster_lines[cluster_idxs[i]].append(lines[i])
+
+    refined_lines=[]
+    for cluster_line in cluster_lines:
+        refined_lines.append(cluster_line[0])
+    return refined_lines
+
 
 
 
@@ -854,10 +873,8 @@ def cv2HarrisCorner(img):
     return corners, img
 def getIntersectionPoint(l1, l2):
     pts = np.cross(l1, l2)
-    if pts[2] > 0:
-        pts = pts/pts[2]
-        return np.array([int(pts[0]), int(pts[1])])
-    return np.array((0,0))
+    pts = pts/pts[2]
+    return np.array([int(pts[0]), int(pts[1])])
 def findCornerP(lines, img):
     pts = []
     h,w,c = img.shape
