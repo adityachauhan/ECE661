@@ -28,13 +28,13 @@ def main():
     cpvl = sortLines(cpvl, "v")
     cphl = sortLines(cphl, "h")
     cp_corners = getCorners(cpvl, cphl)
-    plotPoints(cp_corners, cp, mode="ch")
-    cv2show(cp, "cp")
+    # plotPoints(cp_corners, cp, mode="ch")
+    # cv2show(cp, "cp")
 
 
 
 
-    for i in range(num_images):
+    for i in range(1):
         img = readImgCV(image_paths[i])
         orig_img = np.copy(img)
         img_edges = cannyEdge(img)
@@ -54,7 +54,8 @@ def main():
             # img = plotLines(refined_l2, img, (255,0,0))
             corners = getCorners(refined_l2, refined_l1)
             # plotPoints(corners, orig_img, mode="ch")
-
+        h = hmat_pinv(cp_corners, corners)
+        print(h)
         # houghName = "houghLines_"+str(i+1)+'.png'
         # save_img(houghName, out_dir, img)
         # name = "corners_"+str(i+1)+'.png'

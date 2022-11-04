@@ -896,123 +896,6 @@ def getIntersectionPoint(l1, l2):
     pts = np.cross(l1, l2)
     pts = pts/(pts[2]+1e-6)
     return np.array([int(pts[0]), int(pts[1])])
-def findCornerP(lines, img):
-    pts = []
-    h,w,c = img.shape
-    padding=10
-    for i in range(len(lines)-1):
-        l1 = lines[i][0]
-        l1_hc = make_line_hc(np.array((l1[0], l1[1])), np.array((l1[2], l1[3])))
-        for j in range(len(lines)):
-            l2 = lines[j][0]
-            l2_hc = make_line_hc(np.array((l2[0], l2[1])), np.array((l2[2], l2[3])))
-            pt = getIntersectionPoint(l1_hc, l2_hc)
-
-            if pt[0] > padding and pt[0] < w-padding and pt[1] > padding and pt[1] < h-padding:
-                pts.append(pt)
-
-    pts = np.array(pts)
-    return pts
-
-def findCorner(lines, img):
-    pts = []
-    h,w,c = img.shape
-    padding=10
-    for i in range(len(lines)-1):
-        l1 = lines[i]
-        l1_hc = make_line_hc(np.array((l1[0], l1[1])), np.array((l1[2], l1[3])))
-        for j in range(len(lines)):
-            l2 = lines[j]
-            l2_hc = make_line_hc(np.array((l2[0], l2[1])), np.array((l2[2], l2[3])))
-            pt = getIntersectionPoint(l1_hc, l2_hc)
-
-            if pt[0] > padding and pt[0] < w-padding and pt[1] > padding and pt[1] < h-padding:
-                pts.append(pt)
-
-    pts = np.array(pts)
-    return pts
-
-
-
-
-def pointNeighbours(pt, R):
-    p1 = (pt[0], pt[1]+R)
-    p2 = (pt[0]+R, pt[1]+R)
-    p3 = (pt[0]+R, pt[1])
-    p4 = (pt[0]+R, pt[1]-R)
-    p5 = (pt[0], pt[1]-R)
-    p6 = (pt[0]-R, pt[1]-R)
-    p7 = (pt[0]-R, pt[1])
-    p8 = (pt[0]-R, pt[1]+R)
-    return [p1, p2, p3, p4, p5, p6, p7, p8]
-def refinePtsP(pts, dist_thresh):
-    idx1=[]
-    idx2=[]
-    idx = [[] for _ in range(len(pts))]
-    refined_pts=[]
-    for i in range(len(pts)-1):
-        if i not in idx2 and i not in idx1:
-            for j in range(i+1,len(pts)):
-            # print(i, j, math.dist([pts[i][0], pts[i][1]], [pts[j][0], pts[j][1]]))
-                if j not in idx2 and j not in idx1 and (pts[j][0]-pts[i][0])**2 + (pts[j][1]-pts[i][1])**2 <= dist_thresh**2:
-                # if j not in idx2 and j not in idx1 and math.dist([pts[i][0], pts[i][1]],[pts[j][0], pts[j][1]]) <= dist_thresh :
-                    idx1.append(i)
-                    idx2.append(j)
-                    idx[i].append(j)
-
-    # print(idx)
-    for k in range(len(idx)):
-        if len(idx[k])>0:
-            # print(pts[idx[k]])
-            x_coord = int(np.mean(np.append(pts[k][0], pts[idx[k]][:,0])))
-            y_coord = int(np.mean(np.append(pts[k][1], pts[idx[k]][:,1])))
-            refined_pts.append((x_coord, y_coord))
-
-    return refined_pts, len(refined_pts)
-
-def refinePts(pts, dist_thresh):
-    idx1=[]
-    idx2=[]
-    idx = [[] for _ in range(len(pts))]
-    refined_pts=[]
-    for i in range(len(pts)-1):
-        if i not in idx2 and i not in idx1:
-            for j in range(len(pts)):
-                # print(i, j, math.dist([pts[i][0], pts[i][1]], [pts[j][0], pts[j][1]]))
-                # if j not in idx2 and j not in idx1 and (pts[j][0]-pts[i][0])**2 + (pts[j][1]-pts[i][1])**2 <= dist_thresh**2:
-                if j not in idx2 and j not in idx1 and math.dist([pts[i][0], pts[i][1]],[pts[j][0], pts[j][1]]) <= dist_thresh :
-                    idx1.append(i)
-                    idx2.append(j)
-                    idx[i].append(j)
-
-    # print(idx)
-    for k in range(len(idx)):
-        if len(idx[k])>0:
-            # print(pts[idx[k]])
-            x_coord = int(np.mean(np.append(pts[k][0], pts[idx[k]][:,0])))
-            y_coord = int(np.mean(np.append(pts[k][1], pts[idx[k]][:,1])))
-            refined_pts.append((x_coord, y_coord))
-
-    return refined_pts, len(refined_pts)
-def refineBorderBased(edgeMap, pts, img):
-    refined_pts=[]
-    idxs = np.where(edgeMap==255)
-    edge_pts = np.column_stack((idxs[1], idxs[0]))
-    minX = np.argmin(idxs[1])
-    maxX = np.argmax(idxs[1])
-    minY = np.argmin(idxs[0])
-    maxY = np.argmax(idxs[0])
-    print(minX, maxX, minY, maxY)
-    print(edge_pts[minX], edge_pts[maxX], edge_pts[minY], edge_pts[maxY])
-    polygon = Polygon([edge_pts[minX], edge_pts[maxY], edge_pts[maxX], edge_pts[minY]])
-    for pt in pts:
-        point = Point(pt)
-        if polygon.contains(point):
-            refined_pts.append(pt)
-    return refined_pts, len(refined_pts)
-
-
-
 
 def plotPoints(pts, img, mode):
     count=1
@@ -1028,4 +911,5 @@ def plotPoints(pts, img, mode):
             count += 1
 
     return img
+
 
