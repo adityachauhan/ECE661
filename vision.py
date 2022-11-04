@@ -737,8 +737,8 @@ def cannyEdge(img, blur=False):
     edgeMap = cv2.Canny(gray, 300,300,None,3)
     return edgeMap
 
-def houghLines(edgeMap):
-    lines = cv2.HoughLines(edgeMap,1, np.pi/180, 48)
+def houghLines(edgeMap, thresh):
+    lines = cv2.HoughLines(edgeMap,1, np.pi/180, thresh)
     pts = []
     for line in lines:
         rho, theta = line[0]
@@ -865,11 +865,13 @@ def getCorners(vlines, hlines):
     corners=np.array(corners)
     return corners
 
+def sortLines(lines, type):
+    if type=='v':
+        lines = sorted(lines, key=lambda x:x[0])
+    if type=='h':
+        lines = sorted(lines, key=lambda x:x[1])
 
-
-
-
-
+    return lines
 def plotLinesP(lines, img):
     for i in range(len(lines)):
         l = lines[i][0]
@@ -892,7 +894,7 @@ def cv2HarrisCorner(img):
     return corners, img
 def getIntersectionPoint(l1, l2):
     pts = np.cross(l1, l2)
-    pts = pts/pts[2]
+    pts = pts/(pts[2]+1e-6)
     return np.array([int(pts[0]), int(pts[1])])
 def findCornerP(lines, img):
     pts = []
