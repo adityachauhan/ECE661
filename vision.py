@@ -902,12 +902,12 @@ def plotPoints(pts, img, mode,color):
     if mode == "harris":
         for pt in pts:
             cv2.circle(img, (pt[1], pt[0]), radius=2, color=color, thickness=-1)
-            cv2.putText(img, str(count), (pt[1], pt[0]), cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(img, str(count), (pt[1], pt[0]), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
             count+=1
     else:
         for pt in pts:
             cv2.circle(img, (pt[0], pt[1]), radius=2, color=color, thickness=-1)
-            cv2.putText(img, str(count), (pt[0], pt[1]), cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(img, str(count), (pt[0], pt[1]), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
             count += 1
 
     return img
@@ -987,7 +987,7 @@ def paramSep(params, N):
     K = np.array([[k[0],k[1],k[2]],[0,k[3],k[4]],[0,0,1]])
     rem_params = params[5:]
     rem_params = rearrange(rem_params, '(c h) -> c h', c=N, h=6)
-    print(rem_params.shape)
+    # print(rem_params.shape)
     R=[]
     T=[]
     for i in range(N):
@@ -1017,12 +1017,29 @@ def CameraReporjection(Hcam, CP_Corners):
         proj_corners = []
         for corner in corners:
             corner_hc = cvrt2homo(corner)
+            print(corner_hc)
             proj_corner = np.dot(hcam, corner_hc.T)
+            print(proj_corner)
             proj_corner = proj_corner/(proj_corner[2]+1e-6)
             proj_corners.append((int(proj_corner[0]), int(proj_corner[1])))
         reprojCorners.append(proj_corners)
     return reprojCorners
 
+def CameraReporjection2BaseImg(Hcam, CP_Corners):
+    reprojCorners = []
+    for i in range(len(Hcam)):
+        hcam = np.array(Hcam[i])
+        corners = CP_Corners[i]
+        proj_corners = []
+        for corner in corners:
+            corner_hc = cvrt2homo(corner)
+            print(corner_hc)
+            proj_corner = np.dot(hcam, corner_hc.T)
+            print(proj_corner)
+            proj_corner = proj_corner/(proj_corner[2]+1e-6)
+            proj_corners.append((int(proj_corner[0]), int(proj_corner[1])))
+        reprojCorners.append(proj_corners)
+    return reprojCorners
 
 def costFunCameraCaleb(params, CP_Corners, Corners):
     R,T,K = paramSep(params, len(Corners))
@@ -1042,6 +1059,23 @@ def getError(diff):
     mean = np.mean(norm)
     var = np.var(norm)
     return max_diff, mean, var
+
+
+def reprojectCorners(Hcam, cp_id, Corners, image_paths, cp_corners):
+    h_base = Hcam[cp_id]
+    reproj_H = []
+    for i in range(len(image_paths)):
+        h = Hcam[i]
+        reproj_h = np.dot(h_base, np.linalg.inv(h))
+        reproj_H.append(reproj_h)
+    reproj_corners = CameraReporjection2BaseImg(reproj_H, Corners)
+    for i in range(len(image_paths)):
+        img = readImgCV(image_paths[cp_id])
+        img = plotPoints(cp_corners, img, mode="ch", color=(255, 0, 255))
+        img = plotPoints(reproj_corners[i], img, mode="ch", color=(255, 255, 0))
+        cv2show(img, "img")
+
+
 
 
 
