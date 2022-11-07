@@ -780,7 +780,7 @@ def filterLines(lines):
             type1.append(l)
         elif (angle**2) > (np.pi/4)**2:
             type2.append(l)
-    print(len(type1), len(type2), type)
+    # print(len(type1), len(type2), type)
     return type1, type2, type
 
 
@@ -897,19 +897,162 @@ def getIntersectionPoint(l1, l2):
     pts = pts/(pts[2]+1e-6)
     return np.array([int(pts[0]), int(pts[1])])
 
-def plotPoints(pts, img, mode):
+def plotPoints(pts, img, mode,color):
     count=1
     if mode == "harris":
         for pt in pts:
-            cv2.circle(img, (pt[1], pt[0]), radius=2, color=(255, 0, 0), thickness=-1)
+            cv2.circle(img, (pt[1], pt[0]), radius=2, color=color, thickness=-1)
             cv2.putText(img, str(count), (pt[1], pt[0]), cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 0), 1, cv2.LINE_AA)
             count+=1
     else:
         for pt in pts:
-            cv2.circle(img, (pt[0], pt[1]), radius=2, color=(255, 0, 0), thickness=-1)
+            cv2.circle(img, (pt[0], pt[1]), radius=2, color=color, thickness=-1)
             cv2.putText(img, str(count), (pt[0], pt[1]), cv2.FONT_HERSHEY_SIMPLEX,0.5, (255, 0, 0), 1, cv2.LINE_AA)
             count += 1
 
     return img
+
+def Vij(H,i,j):
+    v=np.zeros(6)
+    v[0]=H[0,i]*H[0,j]
+    v[1]=H[0,i]*H[1,j]+H[1,i]*H[0,j]
+    v[2]=H[1,i]*H[1,j]
+    v[3]=H[2,i]*H[0,j]+H[0,i]*H[2,j]
+    v[4]=H[2,i]*H[1,j]+H[1,i]*H[2,j]
+    v[5]=H[2,i]*H[2,j]
+    return(v)
+
+def V(H):
+    v12=Vij(H,0,1)
+    v11=Vij(H,0,0)
+    v22=Vij(H,1,1)
+    return np.array(v12), np.array((v11-v22))
+def omegaCalc(H):
+    Vmat = np.ones((len(H) * 2, 6))
+    for i in range(len(H)):
+        v1, v2 = V(H[i])
+        Vmat[2 * i] = v1
+        Vmat[(2*i)+1] = v2
+
+    u,d,ut = np.linalg.svd(Vmat)
+    b = ut[-1]
+    w = [[b[0],b[1],b[3]],[b[1],b[2],b[4]],[b[3],b[4],b[5]]]
+    w = np.array(w)
+    return w
+
+def zhangK(w):
+    y0 = ((w[0,1]*w[0,2])-(w[0,0]*w[1,2]))/((w[0,0]*w[1,1])-(w[0,1]**2))
+    A = w[2,2] - ((w[0,2]**2 + (y0*((w[0,1]*w[0,2])-(w[0,0]*w[1,2]))))/(w[0,0]))
+    ax = np.sqrt(A/w[0,0])
+    ay = np.sqrt((A*w[0,0])/((w[0,0]*w[1,1])-(w[0,1]**2)))
+    s = -(w[0,1]*(ax**2)*ay)/(A)
+    x0 = ((s*y0)/ay) - ((w[0,2]*(ax**2))/A)
+    K = np.array([[ax, s, x0],[0, ay, y0],[0,0,1]])
+    return K
+
+def zhangRT(H, K):
+    R = []
+    T = []
+    Kinv = np.linalg.inv(K)
+    for h in H:
+        r12t = np.dot(Kinv, h)
+        norm = 1/np.linalg.norm(r12t[:,0])
+        r12t = norm * r12t
+        r3 = np.cross(r12t[:,0], r12t[:,1])
+        r = np.column_stack((r12t[:,:2], r3))
+        u,d,ut = np.linalg.svd(r)
+        r = np.dot(u,ut)
+        R.append(r)
+        T.append(r12t[:,2])
+    return R,T
+
+def paramComb(R, T, K):
+    _W = []
+    comb_array = []
+    K_arr = [K[0,0], K[0,1], K[0,2], K[1,1], K[1,2]]
+    comb_array.append(K_arr)
+    for i in range(len(R)):
+        r = R[i]
+        t = np.array(T[i])
+        angle = np.arccos((np.trace(r) - 1)/2)
+        _w = (angle/(2*np.sin(angle))) * np.array([r[2,1]-r[1,2],r[0,2]-r[2,0],r[1,0]-r[0,1]])
+        comb_array.append(_w)
+        comb_array.append(t)
+    comb_array = np.array(comb_array)
+    comb_array = np.concatenate(comb_array)
+    return comb_array
+
+def paramSep(params, N):
+    k = params[:5]
+    K = np.array([[k[0],k[1],k[2]],[0,k[3],k[4]],[0,0,1]])
+    rem_params = params[5:]
+    rem_params = rearrange(rem_params, '(c h) -> c h', c=N, h=6)
+    print(rem_params.shape)
+    R=[]
+    T=[]
+    for i in range(N):
+        _w = rem_params[i][:3]
+        t = rem_params[i][3:]
+        norm = np.linalg.norm(_w)
+        _W = np.array([[0, -_w[2], _w[1]], [_w[2], 0, -_w[0]], [-_w[1], _w[0], 0]])
+        r = np.eye(3) + (np.sin(norm) / norm) * _W + ((1 - np.cos(norm)) / (norm ** 2)) * np.dot(_W,_W)
+        T.append(t)
+        R.append(r)
+    return R,T,K
+
+def CameraCalibrationHomography(K, R, T):
+    Hcam = []
+    for i in range(len(R)):
+        RT = np.column_stack((R[i][:,:2], T[i].T))
+        hcam = np.dot(K, RT)
+        Hcam.append(hcam)
+
+    return Hcam
+
+def CameraReporjection(Hcam, CP_Corners):
+    reprojCorners = []
+    for i in range(len(Hcam)):
+        hcam = np.array(Hcam[i])
+        corners = CP_Corners
+        proj_corners = []
+        for corner in corners:
+            corner_hc = cvrt2homo(corner)
+            proj_corner = np.dot(hcam, corner_hc.T)
+            proj_corner = proj_corner/(proj_corner[2]+1e-6)
+            proj_corners.append((int(proj_corner[0]), int(proj_corner[1])))
+        reprojCorners.append(proj_corners)
+    return reprojCorners
+
+
+def costFunCameraCaleb(params, CP_Corners, Corners):
+    R,T,K = paramSep(params, len(Corners))
+    H = CameraCalibrationHomography(K,R,T)
+    RP_Corners = CameraReporjection(H, CP_Corners)
+    X = rearrange(np.array(RP_Corners), 'b c h -> (b c h)')
+    f = rearrange(np.array(Corners), 'b c h -> (b c h)')
+    error = X-f
+    return error
+
+
+def getError(diff):
+    N = len(diff)//2
+    diff = rearrange(diff, '(c h) -> c h', c=N, h=2)
+    norm = np.linalg.norm(diff, axis=1)
+    max_diff = np.max(norm)
+    mean = np.mean(norm)
+    var = np.var(norm)
+    return max_diff, mean, var
+
+
+
+
+
+
+
+
+
+
+
+
 
 
