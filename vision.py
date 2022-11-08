@@ -901,13 +901,13 @@ def plotPoints(pts, img, mode,color):
     count=1
     if mode == "harris":
         for pt in pts:
-            cv2.circle(img, (pt[1], pt[0]), radius=2, color=color, thickness=-1)
-            cv2.putText(img, str(count), (pt[1], pt[0]), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
+            cv2.circle(img, (int(pt[1]), int(pt[0])), radius=2, color=color, thickness=-1)
+            cv2.putText(img, str(count), (int(pt[1]), int(pt[0])), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
             count+=1
     else:
         for pt in pts:
-            cv2.circle(img, (pt[0], pt[1]), radius=2, color=color, thickness=-1)
-            cv2.putText(img, str(count), (pt[0], pt[1]), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
+            cv2.circle(img, (int(pt[0]), int(pt[1])), radius=2, color=color, thickness=-1)
+            cv2.putText(img, str(count), (int(pt[0]), int(pt[1])), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
             count += 1
 
     return img
@@ -982,7 +982,10 @@ def paramComb(R, T, K):
     comb_array = np.concatenate(comb_array)
     return comb_array
 
-def paramSep(params, N):
+def paramSep(params, N, rd=False):
+    if rd:
+        k1,k2 = params[0:2]
+        params = params[2:]
     k = params[:5]
     K = np.array([[k[0],k[1],k[2]],[0,k[3],k[4]],[0,0,1]])
     rem_params = params[5:]
@@ -998,6 +1001,8 @@ def paramSep(params, N):
         r = np.eye(3) + (np.sin(norm) / norm) * _W + ((1 - np.cos(norm)) / (norm ** 2)) * np.dot(_W,_W)
         T.append(t)
         R.append(r)
+    if rd:
+        return R,T,K,k1,k2
     return R,T,K
 
 def CameraCalibrationHomography(K, R, T):
@@ -1041,27 +1046,54 @@ def CameraReporjection2BaseImg(Hcam, CP_Corners):
         reprojCorners.append(proj_corners)
     return reprojCorners
 
-def costFunCameraCaleb(params, CP_Corners, Corners):
-    R,T,K = paramSep(params, len(Corners))
-    H = CameraCalibrationHomography(K,R,T)
-    RP_Corners = CameraReporjection(H, CP_Corners)
-    # X = rearrange(np.array(RP_Corners), 'b c h -> (b c h)')
-    X = rearrange(np.array(RP_Corners), 'b c h -> (b c) h')
-    # f = rearrange(np.array(Corners), 'b c h -> (b c h)')
-    f = rearrange(np.array(Corners), 'b c h -> (b c) h')
-    error = X-f
-    error = np.linalg.norm(error, axis=1)
+def costFunCameraCaleb(params, CP_Corners, Corners, rd=False):
+    if rd:
+        R,T,K = paramSep(params[2:], len(Corners))
+        k1,k2 = params[0:2]
+        x0 = params[4]
+        y0 = params[6]
+    else:
+        R,T,K = paramSep(params, len(Corners))
+    RP_Corners = []
+    for i in range(len(R)):
+        RT = np.column_stack((R[i][:,:2], T[i].T))
+        hcam = np.dot(K, RT)
+        proj_corners = []
+        for corner in CP_Corners:
+            corner_hc = cvrt2homo(corner)
+            proj_corner = np.dot(hcam, corner_hc.T)
+            proj_corner = proj_corner / (proj_corner[2] + 1e-6)
+            proj_corners.append((proj_corner[0],proj_corner[1]))
+        RP_Corners.append(proj_corners)
+
+    if rd:
+        RP_Corners = radialDistort(RP_Corners, k1,k2,x0,y0)
+    X = rearrange(np.array(RP_Corners), 'b c h -> (b c h)')
+    f = rearrange(np.array(Corners), 'b c h -> (b c h)')
+    error = (X-f)
     return error
 
+def radialDistort(Corners, k1,k2,x0,y0):
+    RP_Corners=[]
+    # print(np.array(Corners).shape)
+    for i in range(len(Corners)):
+        corner = np.array(Corners[i])
+        x = corner[:,0]
+        y = corner[:,1]
+        r = (x-x0)**2 + (y-y0)**2
+        _x = x + ((x-x0)*(k1*(r**2) + k2*(r**4)))
+        _y = y + ((y-y0)*(k1*(r**2) + k2*(r**4)))
+        RP_Corners.append(np.column_stack((_x,_y)))
+    return RP_Corners
 
 
 def getError(diff):
-    # N = len(diff)//2
-    # diff = rearrange(diff, '(c h) -> c h', c=N, h=2)
-    # norm = np.linalg.norm(diff)
-    max_diff = np.max(diff)
-    mean = np.mean(diff)
-    var = np.var(diff)
+    N = len(diff)//2
+    diff = rearrange(diff, '(c h) -> c h', c=N, h=2)
+    norm = np.linalg.norm(diff, axis=1)
+    max_diff = np.max(norm)
+    mean = np.mean(norm)
+    var = np.var(norm)
     return max_diff, mean, var
 
 
