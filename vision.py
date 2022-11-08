@@ -1017,9 +1017,9 @@ def CameraReporjection(Hcam, CP_Corners):
         proj_corners = []
         for corner in corners:
             corner_hc = cvrt2homo(corner)
-            print(corner_hc)
+            # print(corner_hc)
             proj_corner = np.dot(hcam, corner_hc.T)
-            print(proj_corner)
+            # print(proj_corner)
             proj_corner = proj_corner/(proj_corner[2]+1e-6)
             proj_corners.append((int(proj_corner[0]), int(proj_corner[1])))
         reprojCorners.append(proj_corners)
@@ -1033,9 +1033,9 @@ def CameraReporjection2BaseImg(Hcam, CP_Corners):
         proj_corners = []
         for corner in corners:
             corner_hc = cvrt2homo(corner)
-            print(corner_hc)
+            # print(corner_hc)
             proj_corner = np.dot(hcam, corner_hc.T)
-            print(proj_corner)
+            # print(proj_corner)
             proj_corner = proj_corner/(proj_corner[2]+1e-6)
             proj_corners.append((int(proj_corner[0]), int(proj_corner[1])))
         reprojCorners.append(proj_corners)
@@ -1045,19 +1045,23 @@ def costFunCameraCaleb(params, CP_Corners, Corners):
     R,T,K = paramSep(params, len(Corners))
     H = CameraCalibrationHomography(K,R,T)
     RP_Corners = CameraReporjection(H, CP_Corners)
-    X = rearrange(np.array(RP_Corners), 'b c h -> (b c h)')
-    f = rearrange(np.array(Corners), 'b c h -> (b c h)')
+    # X = rearrange(np.array(RP_Corners), 'b c h -> (b c h)')
+    X = rearrange(np.array(RP_Corners), 'b c h -> (b c) h')
+    # f = rearrange(np.array(Corners), 'b c h -> (b c h)')
+    f = rearrange(np.array(Corners), 'b c h -> (b c) h')
     error = X-f
+    error = np.linalg.norm(error, axis=1)
     return error
 
 
+
 def getError(diff):
-    N = len(diff)//2
-    diff = rearrange(diff, '(c h) -> c h', c=N, h=2)
-    norm = np.linalg.norm(diff, axis=1)
-    max_diff = np.max(norm)
-    mean = np.mean(norm)
-    var = np.var(norm)
+    # N = len(diff)//2
+    # diff = rearrange(diff, '(c h) -> c h', c=N, h=2)
+    # norm = np.linalg.norm(diff)
+    max_diff = np.max(diff)
+    mean = np.mean(diff)
+    var = np.var(diff)
     return max_diff, mean, var
 
 
@@ -1074,13 +1078,6 @@ def reprojectCorners(Hcam, cp_id, Corners, image_paths, cp_corners):
         img = plotPoints(cp_corners, img, mode="ch", color=(255, 0, 255))
         img = plotPoints(reproj_corners[i], img, mode="ch", color=(255, 255, 0))
         cv2show(img, "img")
-
-
-
-
-
-
-
 
 
 

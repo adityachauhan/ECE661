@@ -22,23 +22,17 @@ def main():
     data_dir = os.path.join(top_dir, data_dir)
     out_dir = config['PARAMETERS']['output']
     image_paths = glob.glob(data_dir+'/*.jpg')
-    print(image_paths)
+    # print(image_paths)
     num_images = len(image_paths)
     cp = readImgCV(data_dir+"/Pic_11.jpg")
-    id_cp=0
+    id_cp= image_paths.index('hw8images/Dataset1/Pic_11.jpg')
+    print(id_cp)
     cp_edges = cannyEdge(cp)
     cp_lines = houghLines(cp_edges, 48)
     cpvl,cphl,type=filterLines(cp_lines)
     cpvl = refineLines(cpvl, "v", 8)
     cphl = refineLines(cphl, "h", 10)
     cp_corners = getCorners(cpvl, cphl)
-    # cp_corners=[]
-    # pattern_dim = (5,4)
-    # for i in range(2*pattern_dim[0]):
-    #     for j in range(2*pattern_dim[1]):
-    #         cp_corners.append([j*25, i*25])
-    # plotPoints(cp_corners, cp, mode="ch")
-    # cv2show(cp, "cp")
     H = []
     Corners = []
 
@@ -69,35 +63,34 @@ def main():
     K = zhangK(w)
     R,T = zhangRT(H, K)
     comb_array = paramComb(R,T, K)
-    R,T,K = paramSep(comb_array, num_images)
-    # print(R,T,K)
-    Hcam = CameraCalibrationHomography(K, R, T)
-    reprojCorners = CameraReporjection(Hcam, cp_corners)
+    # R,T,K = paramSep(comb_array, num_images)
+    # Hcam = CameraCalibrationHomography(K, R, T)
+    # reprojCorners = CameraReporjection(Hcam, cp_corners)
+
     error = costFunCameraCaleb(comb_array, cp_corners, Corners)
     max_err, mean_err, var_err = getError(error)
     print(max_err, mean_err, var_err)
-    print(K)
 
-    # opt_comb_array = least_squares(costFunCameraCaleb, comb_array, method='lm', args=(cp_corners, Corners))['x']
+    opt_comb_array = least_squares(costFunCameraCaleb, comb_array, method='lm', args=(cp_corners, Corners))
+    opt_comb_array=opt_comb_array.x
     # opt_R,opt_T,opt_K = paramSep(opt_comb_array, num_images)
-    # print(opt_K)
     # optimized_Hcam = CameraCalibrationHomography(opt_K, opt_R, opt_T)
     # opt_reprojCorners = CameraReporjection(optimized_Hcam, cp_corners)
-    # lm_error = costFunCameraCaleb(opt_comb_array, cp_corners, Corners)
-    # lm_max_err, lm_mean_err, lm_var_err = getError(lm_error)
-    # print(lm_max_err, lm_mean_err, lm_var_err)
+    lm_error = costFunCameraCaleb(opt_comb_array, cp_corners, Corners)
+    lm_max_err, lm_mean_err, lm_var_err = getError(lm_error)
+    print(lm_max_err, lm_mean_err, lm_var_err)
 
-    reprojectCorners(Hcam, id_cp, Corners, image_paths, cp_corners)
 
 
 
     # for i in range(num_images):
     #     img = readImgCV(image_paths[i])
-    #     img = plotPoints(Corners[i], img, mode="ch", color=(255,0,255))
+    #     # img = plotPoints(Corners[i], img, mode="ch", color=(255,0,255))
     #     img = plotPoints(reprojCorners[i], img, mode="ch", color=(255,255,0))
     #     img = plotPoints(opt_reprojCorners[i], img, mode="ch", color=(0,255,255))
     #     cv2show(img, "img")
 
+    # reprojectCorners(Hcam, id_cp, Corners, image_paths, cp_corners)
 
         # houghName = "houghLines_"+str(i+1)+'.png'
         # save_img(houghName, out_dir, img)
