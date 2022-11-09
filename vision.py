@@ -879,10 +879,11 @@ def plotLinesP(lines, img):
     return img
 
 def plotLines(lines, img, color):
+    plot_img = np.copy(img)
     for i in range(len(lines)):
         l = lines[i]
-        cv2.line(img, (l[0], l[1]), (l[2], l[3]), color, 2, cv2.LINE_AA)
-    return img
+        cv2.line(plot_img, (l[0], l[1]), (l[2], l[3]), color, 2, cv2.LINE_AA)
+    return plot_img
 
 
 def cv2HarrisCorner(img):
@@ -898,19 +899,20 @@ def getIntersectionPoint(l1, l2):
     return np.array([int(pts[0]), int(pts[1])])
 
 def plotPoints(pts, img, mode,color):
+    plot_img = np.copy(img)
     count=1
     if mode == "harris":
         for pt in pts:
-            cv2.circle(img, (int(pt[1]), int(pt[0])), radius=2, color=color, thickness=-1)
-            cv2.putText(img, str(count), (int(pt[1]), int(pt[0])), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
+            cv2.circle(plot_img, (int(pt[1]), int(pt[0])), radius=2, color=color, thickness=-1)
+            cv2.putText(plot_img, str(count), (int(pt[1]), int(pt[0])), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
             count+=1
     else:
         for pt in pts:
-            cv2.circle(img, (int(pt[0]), int(pt[1])), radius=2, color=color, thickness=-1)
-            cv2.putText(img, str(count), (int(pt[0]), int(pt[1])), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
+            cv2.circle(plot_img, (int(pt[0]), int(pt[1])), radius=2, color=color, thickness=-1)
+            cv2.putText(plot_img, str(count), (int(pt[0]), int(pt[1])), cv2.FONT_HERSHEY_SIMPLEX,0.5, color, 1, cv2.LINE_AA)
             count += 1
 
-    return img
+    return plot_img
 
 def Vij(H,i,j):
     v=np.zeros(6)
@@ -1097,19 +1099,16 @@ def getError(diff):
     return max_diff, mean, var
 
 
-def reprojectCorners(Hcam, cp_id, Corners, image_paths, cp_corners):
+def reprojectCorners(Hcam, cp_id, Corners):
     h_base = Hcam[cp_id]
     reproj_H = []
-    for i in range(len(image_paths)):
+    for i in range(len(Hcam)):
         h = Hcam[i]
         reproj_h = np.dot(h_base, np.linalg.inv(h))
         reproj_H.append(reproj_h)
     reproj_corners = CameraReporjection2BaseImg(reproj_H, Corners)
-    for i in range(len(image_paths)):
-        img = readImgCV(image_paths[cp_id])
-        img = plotPoints(cp_corners, img, mode="ch", color=(255, 0, 255))
-        img = plotPoints(reproj_corners[i], img, mode="ch", color=(255, 255, 0))
-        cv2show(img, "img")
+    return reproj_corners
+
 
 
 

@@ -1,6 +1,16 @@
 [PARAMETERS]
 top_dir=hw8images
-data_dir=Dataset1
+data_dir=Dataset2
 plotting_dir=plotting
 output=hw8outputs
 base_file=Pic_11.jpg
+corners=corners
+hough_lines=hough_lines
+hough_lines_filtered=hough_lines_filtered
+proj_corners=proj_corners
+proj_corners_lm=proj_corners_lm
+proj_corners_lm_rd=proj_corners_lm_rd
+reproj_corners=reproj_corners
+reproj_corners_lm=reproj_corners_lm
+reproj_corners_lm_rd=reproj_corners_lm_rd
+canny=canny
