@@ -7,7 +7,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage.filters import maximum_filter
-from einops import rearrange
+from einops import rearrange, repeat, reduce
 from tqdm import trange, tqdm
 from scipy.signal import convolve2d
 import sys
@@ -1110,6 +1110,15 @@ def reprojectCorners(Hcam, cp_id, Corners):
     return reproj_corners
 
 
+
+def reprojError(cp_corners, Corners):
+    cp_corners = np.array(cp_corners)
+    Corners = np.array(Corners)
+    cp_corners = repeat(cp_corners, 'h w -> c h w', c=len(Corners))
+    X = rearrange(cp_corners, 'b c h -> (b c h)')
+    f = rearrange(Corners, 'b c h -> (b c h)')
+    error = (X-f)
+    return error
 
 
 
