@@ -84,139 +84,141 @@ def main():
         cp_corners = getCorners(refined_cpl2, refined_cpl1)
 
     cp_corner_img = plotPoints(cp_corners, cp, mode="ch", color=Color_corners)
+    cv2show(cp_line_img, "img")
+    cv2show(cp_corner_img,"img")
     # save_img("base_img_lines.jpg", out_dir, cp_line_img)
     # save_img("base_img_lines_filtered.jpg", out_dir, cp_line_img_ref)
     # save_img("base_img_corners.jpg", out_dir, cp_corner_img)
 
     print("................................................................................................")
 
-    H = []
-    Corners = []
-
-
-
-    print("Processing Corners to Project from GT to Img.............")
-
-    for i in trange(num_images):
-        img = readImgCV(image_paths[i])
-        img_name = image_paths[i].split('/')[-1]
-        img_edges = cannyEdge(img)
-        lines = houghLines(img_edges, 48)
-        orig_lines = plotLines(lines, img, Color_lines)
-        l1, l2, type = filterLines(lines)
-        if type == "v":
-            refined_l1 = refineLines(l1, "v", 8)
-            l_img = plotLines(refined_l1, img, Color_v_lines)
-            refined_l2 = refineLines(l2, "h", 10)
-            l_img = plotLines(refined_l2, l_img, Color_h_lines)
-            corners = getCorners(refined_l1, refined_l2)
-            p_img = plotPoints(corners, img, mode="ch",color=Color_corners)
-        elif type == "h":
-            refined_l1 = refineLines(l1, "h", 10)
-            l_img = plotLines(refined_l1, img,Color_h_lines )
-            refined_l2 = refineLines(l2, "v", 8)
-            l_img = plotLines(refined_l2, l_img, Color_v_lines)
-            corners = getCorners(refined_l2, refined_l1)
-            p_img = plotPoints(corners, img, mode="ch",color=Color_corners)
-
-        # save_img(img_name, hough_lines_path, orig_lines)
-        # save_img(img_name, hough_lines_filtered_path, l_img)
-        # save_img(img_name, corners_path, p_img)
-        # save_img(img_name, canny_path, img_edges)
-        Corners.append(corners)
-        H.append(hmat_pinv(cp_corners, corners))
-    w = omegaCalc(H)
-    K = zhangK(w)
-    R,T = zhangRT(H, K)
-    comb_array = paramComb(R,T, K)
-    error = costFunCameraCaleb(comb_array, cp_corners, Corners)
-    max_err, mean_err, var_err = getError(error)
-    print("Values of corner projection (max, mean, var) error without LM and RD: ", max_err, mean_err, var_err)
-    print("................................................................................................")
-
-    opt_comb_array = least_squares(costFunCameraCaleb, comb_array, method='lm', args=(cp_corners, Corners))
-    opt_comb_array=opt_comb_array.x
-    lm_error = costFunCameraCaleb(opt_comb_array, cp_corners, Corners)
-    lm_max_err, lm_mean_err, lm_var_err = getError(lm_error)
-    print("Values of corner projection (max, mean, var) error with LM and without RD: ", lm_max_err, lm_mean_err, lm_var_err)
-    print("................................................................................................")
-
-    comb_array_rd = np.append(np.array([0,0]), comb_array)
-    opt_comb_array_rd = least_squares(costFunCameraCaleb, comb_array_rd, method='lm', args=(cp_corners, Corners, True))
-    opt_comb_array_rd = opt_comb_array_rd.x
-    lm_error_rd = costFunCameraCaleb(opt_comb_array_rd, cp_corners, Corners, True)
-    lm_max_err_rd, lm_mean_err_rd, lm_var_err_rd = getError(lm_error_rd)
-    print("Values of corner projection (max, mean, var) error with LM and RD: ", lm_max_err_rd, lm_mean_err_rd, lm_var_err_rd)
-    print("................................................................................................")
-
-    R,T,K = paramSep(comb_array, num_images)
-    Hcam = CameraCalibrationHomography(K, R, T)
-    reprojCorners = CameraReporjection(Hcam, cp_corners)
-    print("Parameters before LM and RD ....................................................................")
-    print("Intrinsic Camera parameters before LM and RD:\n", np.array(K))
-    print("Rotation matrix before LM and RD:\n", np.array(R))
-    print("Translation matrix before LM and RD:\n", np.array(T))
-    print("................................................................................................")
-
-    opt_R,opt_T,opt_K = paramSep(opt_comb_array, num_images)
-    optimized_Hcam = CameraCalibrationHomography(opt_K, opt_R, opt_T)
-    opt_reprojCorners = CameraReporjection(optimized_Hcam, cp_corners)
-    print("Parameters with LM and without RD ....................................................................")
-    print("Intrinsic Camera parameters with LM and without RD:\n", np.array(opt_K))
-    print("Rotation matrix before with LM and without RD:\n", np.array(opt_R))
-    print("Translation matrix before with LM and without RD:\n", np.array(opt_T))
-    print("................................................................................................")
-
-    opt_R_rd, opt_T_rd, opt_K_rd, k1_rd, k2_rd = paramSep(opt_comb_array_rd, num_images,True)
-    optimized_Hcam_rd = CameraCalibrationHomography(opt_K_rd, opt_R_rd, opt_T_rd)
-    opt_reprojCorners_rd = CameraReporjection(optimized_Hcam_rd, cp_corners)
-    opt_reprojCorners_rd = radialDistort(opt_reprojCorners_rd,k1_rd, k2_rd,opt_K_rd[0,2],opt_K_rd[1,2])
-    print("Parameters with LM and RD ....................................................................")
-    print("k1 and K2 for radial distortions:\n", np.array([k1_rd, k2_rd]))
-    print("Intrinsic Camera parameters with LM and RD:\n", np.array(opt_K_rd))
-    print("Rotation matrix with LM and RD:\n", np.array(opt_R_rd))
-    print("Translation matrix with LM and RD:\n", np.array(opt_T_rd))
-    print("................................................................................................")
-
-    print("Projecting the corners from GT to images ........")
-    for i in trange(num_images):
-        img = readImgCV(image_paths[i])
-        img_name = image_paths[i].split('/')[-1]
-        proj_img = plotPoints(reprojCorners[i], img, mode="ch", color=Color_proj_corners)
-        proj_img_lm = plotPoints(opt_reprojCorners[i], img, mode="ch", color=Color_proj_corners_lm)
-        proj_img_lm_rd = plotPoints(opt_reprojCorners_rd[i], img, mode="ch", color=Color_proj_corners_lm_rd)
-        # save_img(img_name, proj_corners_path, proj_img)
-        # save_img(img_name, proj_corners_lm_path, proj_img_lm)
-        # save_img(img_name, proj_corners_lm_rd_path, proj_img_lm_rd)
-    print("................................................................................................")
-
-    print("Re-Projecting the corners from images to GT ........")
-    reproj_corners = reprojectCorners(Hcam, id_cp, Corners)
-    reproj_corners_lm = reprojectCorners(optimized_Hcam, id_cp, Corners)
-    reproj_corners_lm_rd = reprojectCorners(optimized_Hcam_rd, id_cp, Corners)
-    img = readImgCV(image_paths[id_cp])
-    for i in trange(num_images):
-        img_name = image_paths[i].split('/')[-1]
-        reproj_img = plotPoints(reproj_corners[i], img, mode="ch", color=Color_reproj_corners)
-        reproj_img_lm = plotPoints(reproj_corners_lm[i], img, mode="ch", color=Color_reproj_corners_lm)
-        reproj_img_lm_rd = plotPoints(reproj_corners_lm_rd[i], img, mode="ch", color=Color_reproj_corners_lm_rd)
-        # save_img(img_name, reproj_corners_path, reproj_img)
-        # save_img(img_name, reproj_corners_lm_path, reproj_img_lm)
-        # save_img(img_name, reproj_corners_lm_rd_path, reproj_img_lm_rd)
-
-    print("................................................................................................")
-    print("Re-Projection Error ............................................................................")
-    reproj_err = reprojError(cp_corners, reproj_corners)
-    reproj_err_lm = reprojError(cp_corners, reproj_corners_lm)
-    reproj_err_lm_rd = reprojError(cp_corners, reproj_corners_lm_rd)
-    reproj_err_max,reproj_err_mean,reproj_err_var = getError(reproj_err)
-    reproj_err_lm_max,reproj_err_lm_mean,reproj_err_lm_var = getError(reproj_err_lm)
-    reproj_err_lm_rd_max,reproj_err_lm_rd_mean,reproj_err_lm_rd_var = getError(reproj_err_lm_rd)
-    print("Values of reproj error (max, mean, var) without lm and rd", reproj_err_max,reproj_err_mean,reproj_err_var)
-    print("Values of reproj error (max, mean, var) with lm", reproj_err_lm_max,reproj_err_lm_mean,reproj_err_lm_var)
-    print("Values of reproj error (max, mean, var) with rd", reproj_err_lm_rd_max,reproj_err_lm_rd_mean,reproj_err_lm_rd_var)
-
-    print("................................................................................................")
+    # H = []
+    # Corners = []
+    #
+    #
+    #
+    # print("Processing Corners to Project from GT to Img.............")
+    #
+    # for i in trange(num_images):
+    #     img = readImgCV(image_paths[i])
+    #     img_name = image_paths[i].split('/')[-1]
+    #     img_edges = cannyEdge(img)
+    #     lines = houghLines(img_edges, 48)
+    #     orig_lines = plotLines(lines, img, Color_lines)
+    #     l1, l2, type = filterLines(lines)
+    #     if type == "v":
+    #         refined_l1 = refineLines(l1, "v", 8)
+    #         l_img = plotLines(refined_l1, img, Color_v_lines)
+    #         refined_l2 = refineLines(l2, "h", 10)
+    #         l_img = plotLines(refined_l2, l_img, Color_h_lines)
+    #         corners = getCorners(refined_l1, refined_l2)
+    #         p_img = plotPoints(corners, img, mode="ch",color=Color_corners)
+    #     elif type == "h":
+    #         refined_l1 = refineLines(l1, "h", 10)
+    #         l_img = plotLines(refined_l1, img,Color_h_lines )
+    #         refined_l2 = refineLines(l2, "v", 8)
+    #         l_img = plotLines(refined_l2, l_img, Color_v_lines)
+    #         corners = getCorners(refined_l2, refined_l1)
+    #         p_img = plotPoints(corners, img, mode="ch",color=Color_corners)
+    #
+    #     # save_img(img_name, hough_lines_path, orig_lines)
+    #     # save_img(img_name, hough_lines_filtered_path, l_img)
+    #     # save_img(img_name, corners_path, p_img)
+    #     # save_img(img_name, canny_path, img_edges)
+    #     Corners.append(corners)
+    #     H.append(hmat_pinv(cp_corners, corners))
+    # w = omegaCalc(H)
+    # K = zhangK(w)
+    # R,T = zhangRT(H, K)
+    # comb_array = paramComb(R,T, K)
+    # error = costFunCameraCaleb(comb_array, cp_corners, Corners)
+    # max_err, mean_err, var_err = getError(error)
+    # print("Values of corner projection (max, mean, var) error without LM and RD: ", max_err, mean_err, var_err)
+    # print("................................................................................................")
+    #
+    # opt_comb_array = least_squares(costFunCameraCaleb, comb_array, method='lm', args=(cp_corners, Corners))
+    # opt_comb_array=opt_comb_array.x
+    # lm_error = costFunCameraCaleb(opt_comb_array, cp_corners, Corners)
+    # lm_max_err, lm_mean_err, lm_var_err = getError(lm_error)
+    # print("Values of corner projection (max, mean, var) error with LM and without RD: ", lm_max_err, lm_mean_err, lm_var_err)
+    # print("................................................................................................")
+    #
+    # comb_array_rd = np.append(np.array([0,0]), comb_array)
+    # opt_comb_array_rd = least_squares(costFunCameraCaleb, comb_array_rd, method='lm', args=(cp_corners, Corners, True))
+    # opt_comb_array_rd = opt_comb_array_rd.x
+    # lm_error_rd = costFunCameraCaleb(opt_comb_array_rd, cp_corners, Corners, True)
+    # lm_max_err_rd, lm_mean_err_rd, lm_var_err_rd = getError(lm_error_rd)
+    # print("Values of corner projection (max, mean, var) error with LM and RD: ", lm_max_err_rd, lm_mean_err_rd, lm_var_err_rd)
+    # print("................................................................................................")
+    #
+    # R,T,K = paramSep(comb_array, num_images)
+    # Hcam = CameraCalibrationHomography(K, R, T)
+    # reprojCorners = CameraReporjection(Hcam, cp_corners)
+    # print("Parameters before LM and RD ....................................................................")
+    # print("Intrinsic Camera parameters before LM and RD:\n", np.array(K))
+    # print("Rotation matrix before LM and RD:\n", np.array(R))
+    # print("Translation matrix before LM and RD:\n", np.array(T))
+    # print("................................................................................................")
+    #
+    # opt_R,opt_T,opt_K = paramSep(opt_comb_array, num_images)
+    # optimized_Hcam = CameraCalibrationHomography(opt_K, opt_R, opt_T)
+    # opt_reprojCorners = CameraReporjection(optimized_Hcam, cp_corners)
+    # print("Parameters with LM and without RD ....................................................................")
+    # print("Intrinsic Camera parameters with LM and without RD:\n", np.array(opt_K))
+    # print("Rotation matrix before with LM and without RD:\n", np.array(opt_R))
+    # print("Translation matrix before with LM and without RD:\n", np.array(opt_T))
+    # print("................................................................................................")
+    #
+    # opt_R_rd, opt_T_rd, opt_K_rd, k1_rd, k2_rd = paramSep(opt_comb_array_rd, num_images,True)
+    # optimized_Hcam_rd = CameraCalibrationHomography(opt_K_rd, opt_R_rd, opt_T_rd)
+    # opt_reprojCorners_rd = CameraReporjection(optimized_Hcam_rd, cp_corners)
+    # opt_reprojCorners_rd = radialDistort(opt_reprojCorners_rd,k1_rd, k2_rd,opt_K_rd[0,2],opt_K_rd[1,2])
+    # print("Parameters with LM and RD ....................................................................")
+    # print("k1 and K2 for radial distortions:\n", np.array([k1_rd, k2_rd]))
+    # print("Intrinsic Camera parameters with LM and RD:\n", np.array(opt_K_rd))
+    # print("Rotation matrix with LM and RD:\n", np.array(opt_R_rd))
+    # print("Translation matrix with LM and RD:\n", np.array(opt_T_rd))
+    # print("................................................................................................")
+    #
+    # print("Projecting the corners from GT to images ........")
+    # for i in trange(num_images):
+    #     img = readImgCV(image_paths[i])
+    #     img_name = image_paths[i].split('/')[-1]
+    #     proj_img = plotPoints(reprojCorners[i], img, mode="ch", color=Color_proj_corners)
+    #     proj_img_lm = plotPoints(opt_reprojCorners[i], img, mode="ch", color=Color_proj_corners_lm)
+    #     proj_img_lm_rd = plotPoints(opt_reprojCorners_rd[i], img, mode="ch", color=Color_proj_corners_lm_rd)
+    #     # save_img(img_name, proj_corners_path, proj_img)
+    #     # save_img(img_name, proj_corners_lm_path, proj_img_lm)
+    #     # save_img(img_name, proj_corners_lm_rd_path, proj_img_lm_rd)
+    # print("................................................................................................")
+    #
+    # print("Re-Projecting the corners from images to GT ........")
+    # reproj_corners = reprojectCorners(Hcam, id_cp, Corners)
+    # reproj_corners_lm = reprojectCorners(optimized_Hcam, id_cp, Corners)
+    # reproj_corners_lm_rd = reprojectCorners(optimized_Hcam_rd, id_cp, Corners)
+    # img = readImgCV(image_paths[id_cp])
+    # for i in trange(num_images):
+    #     img_name = image_paths[i].split('/')[-1]
+    #     reproj_img = plotPoints(reproj_corners[i], img, mode="ch", color=Color_reproj_corners)
+    #     reproj_img_lm = plotPoints(reproj_corners_lm[i], img, mode="ch", color=Color_reproj_corners_lm)
+    #     reproj_img_lm_rd = plotPoints(reproj_corners_lm_rd[i], img, mode="ch", color=Color_reproj_corners_lm_rd)
+    #     # save_img(img_name, reproj_corners_path, reproj_img)
+    #     # save_img(img_name, reproj_corners_lm_path, reproj_img_lm)
+    #     # save_img(img_name, reproj_corners_lm_rd_path, reproj_img_lm_rd)
+    #
+    # print("................................................................................................")
+    # print("Re-Projection Error ............................................................................")
+    # reproj_err = reprojError(cp_corners, reproj_corners)
+    # reproj_err_lm = reprojError(cp_corners, reproj_corners_lm)
+    # reproj_err_lm_rd = reprojError(cp_corners, reproj_corners_lm_rd)
+    # reproj_err_max,reproj_err_mean,reproj_err_var = getError(reproj_err)
+    # reproj_err_lm_max,reproj_err_lm_mean,reproj_err_lm_var = getError(reproj_err_lm)
+    # reproj_err_lm_rd_max,reproj_err_lm_rd_mean,reproj_err_lm_rd_var = getError(reproj_err_lm_rd)
+    # print("Values of reproj error (max, mean, var) without lm and rd", reproj_err_max,reproj_err_mean,reproj_err_var)
+    # print("Values of reproj error (max, mean, var) with lm", reproj_err_lm_max,reproj_err_lm_mean,reproj_err_lm_var)
+    # print("Values of reproj error (max, mean, var) with rd", reproj_err_lm_rd_max,reproj_err_lm_rd_mean,reproj_err_lm_rd_var)
+    #
+    # print("................................................................................................")
 
 
 

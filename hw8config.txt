@@ -1,6 +1,6 @@
 [PARAMETERS]
 top_dir=hw8images
-data_dir=Dataset2
+data_dir=Dataset4
 plotting_dir=plotting
 output=hw8outputs
 base_file=Pic_11.jpg

@@ -25,7 +25,7 @@ def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
 
 if __name__=='__main__':
     x_img_path = os.path.join(config['PARAMETERS']['top_dir'],config['PARAMETERS']['data_dir'])
-    resize_img_path = os.path.join(config['PARAMETERS']['top_dir'],config['PARAMETERS']['resize_dir'])
+    resize_img_path = os.path.join(config['PARAMETERS']['top_dir'],config['PARAMETERS']['data_dir'])
     img_paths = glob.glob(x_img_path+'/*.jpg')
     num_imgs = len(img_paths)
     for i in range(num_imgs):
