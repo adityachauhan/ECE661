@@ -64,7 +64,7 @@ def str2np(s):
     x_prime_pts = s.split(',')
     x_prime_pts = [int(val) for val in x_prime_pts]
     x_prime_pts = np.array(x_prime_pts)
-    x_prime_pts = rearrange(x_prime_pts, '(c h)-> c h ', c=4, h=2)
+    x_prime_pts = rearrange(x_prime_pts, '(c h)-> c h ', c=len(x_prime_pts)//2, h=2)
     return x_prime_pts
 
 def save_img(name, path, img):
@@ -304,16 +304,40 @@ def SIFTpoints(img):
     return pts_set, des
 
 
-def flann_matching(pts1,pts2,des1,des2):
+def SIFTpoints_v2(img):
+    sift = cv2.SIFT_create()
+    pts, des = sift.detectAndCompute(img, None)
+    return pts, des
+
+def siftMatching(pts1, des1,pts2,des2):
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(des1,des2,k=2)
+    mp1=[]
+    mp2=[]
+
+
+def flann_matching(img1, img2,pts1,des1,pts2,des2):
     FLANN_INDEX_KDTREE = 1
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=50)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     matches = flann.knnMatch(des1, des2, k=2)
+    matchesMask = [[0, 0] for i in range(len(matches))]
+    # for i, (m, n) in enumerate(matches):
+    #     if m.distance < 0.7 * n.distance:
+    #         matchesMask[i] = [1, 0]
+    #
+    # draw_params = dict(matchColor=(0, 255, 0),
+    #                    singlePointColor=(255, 0, 0),
+    #                    matchesMask=matchesMask,
+    #                    flags=cv2.DrawMatchesFlags_DEFAULT)
+    #
+    # img3 = cv2.drawMatchesKnn(img1, pts1, img2, pts2, matches, None, **draw_params)
+    # return img3
     matchingPts1=[]
     matchingPts2=[]
     for i, (m, n) in enumerate(matches):
-        if m.distance < 0.25 * n.distance:
+        if m.distance < 0.7 * n.distance:
             matchingPts1.append((pts1[m.queryIdx].pt[0],pts1[m.queryIdx].pt[1]))
             matchingPts2.append((pts2[n.trainIdx].pt[0],pts2[n.trainIdx].pt[1]))
     matchingPts1 = [[int(val[0]), int(val[1])] for val in matchingPts1]
@@ -437,20 +461,49 @@ def create_panaroma(curr_img, new_img, H):
     curr_img[pts[:, 1], pts[:, 0]] = new_img[est_pts[:, 1], est_pts[:, 0]]
     return curr_img
 
-def plot_inliers_outliers(img1, img2, idx, mp1, mp2):
+def plot_inliers_outliers(img1, img2, idx, mp1, mp2, only_inliers=False):
     comb_img = np.concatenate((img1, img2), axis=1)
     for i in range(len(mp1)):
         p1 = (int(mp1[i][0]), int(mp1[i][1]))
         p2 = (int(mp2[i][0]) + img1.shape[1], int(mp2[i][1]))
-        if i in idx:
-            cv2.circle(comb_img, p1, radius=3, color=(0, 255, 0),thickness=-1)
-            cv2.circle(comb_img, p2, radius=3, color=(0, 255, 0),thickness=-1)
-            cv2.line(comb_img, p1, p2, color=(0, 255, 0), thickness=1)
-
+        if only_inliers:
+            if i in idx:
+                cv2.circle(comb_img, p1, radius=3, color=(0, 255, 0), thickness=-1)
+                cv2.circle(comb_img, p2, radius=3, color=(0, 255, 0), thickness=-1)
+                cv2.line(comb_img, p1, p2, color=(0, 255, 0), thickness=1)
         else:
-            cv2.circle(comb_img, p1, radius=3, color=(255, 0, 0), thickness=-1)
-            cv2.circle(comb_img, p2, radius=3, color=(255, 0, 0),thickness=-1)
-            cv2.line(comb_img, p1, p2, color=(255, 0, 0), thickness=1)
+            if i in idx:
+                cv2.circle(comb_img, p1, radius=3, color=(0, 255, 0),thickness=-1)
+                cv2.circle(comb_img, p2, radius=3, color=(0, 255, 0),thickness=-1)
+                cv2.line(comb_img, p1, p2, color=(0, 255, 0), thickness=1)
+
+            else:
+                cv2.circle(comb_img, p1, radius=3, color=(255, 0, 0), thickness=-1)
+                cv2.circle(comb_img, p2, radius=3, color=(255, 0, 0),thickness=-1)
+                cv2.line(comb_img, p1, p2, color=(255, 0, 0), thickness=1)
+
+    return comb_img
+
+def plot_inliers_outliers_v2(img1, img2, idx, mp1, mp2, only_inliers=False):
+    comb_img = np.concatenate((img1, img2), axis=0)
+    for i in range(len(mp1)):
+        p1 = (int(mp1[i][0]), int(mp1[i][1]))
+        p2 = (int(mp2[i][0]), int(mp2[i][1])+ img1.shape[0])
+        if only_inliers:
+            if i in idx:
+                cv2.circle(comb_img, p1, radius=3, color=(0, 255, 0), thickness=-1)
+                cv2.circle(comb_img, p2, radius=3, color=(0, 255, 0), thickness=-1)
+                cv2.line(comb_img, p1, p2, color=(0, 255, 0), thickness=1)
+        else:
+            if i in idx:
+                cv2.circle(comb_img, p1, radius=3, color=(0, 255, 0),thickness=-1)
+                cv2.circle(comb_img, p2, radius=3, color=(0, 255, 0),thickness=-1)
+                cv2.line(comb_img, p1, p2, color=(0, 255, 0), thickness=1)
+
+            else:
+                cv2.circle(comb_img, p1, radius=3, color=(255, 0, 0), thickness=-1)
+                cv2.circle(comb_img, p2, radius=3, color=(255, 0, 0),thickness=-1)
+                cv2.line(comb_img, p1, p2, color=(255, 0, 0), thickness=1)
 
     return comb_img
 
