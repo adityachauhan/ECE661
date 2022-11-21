@@ -67,6 +67,10 @@ def str2np(s):
     x_prime_pts = rearrange(x_prime_pts, '(c h)-> c h ', c=len(x_prime_pts)//2, h=2)
     return x_prime_pts
 
+def pts2hc(pts):
+    pts_hc = np.ones((len(pts),3))
+    pts_hc[:,:2] = pts
+    return pts_hc
 def save_img(name, path, img):
     img_path = os.path.join(path, name)
     img=cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -1172,6 +1176,48 @@ def reprojError(cp_corners, Corners):
     f = rearrange(Corners, 'b c h -> (b c h)')
     error = (X-f)
     return error
+
+
+def normPts(pts):
+    mean_pts = np.mean(pts, axis=0)
+    d=pts-mean_pts
+    d**=2
+    d=np.mean(np.sqrt(np.sum(d,axis=1)))
+    c=np.sqrt(2)/d
+    T=np.array([[c,0,-c*mean_pts[0]],[0,c,-c*mean_pts[1]],[0,0,1]])
+    pts_hcs = pts2hc(pts)
+    pts_hcs_norm = np.dot(T, pts_hcs.T)
+    pts_hcs_norm = rearrange(pts_hcs_norm,'c h -> h c')
+    return pts_hcs_norm[:,:2], T
+
+def calc_F(pts1, pts2, T1, T2):
+    A = np.ones((len(pts1), 9))
+    for i in range(len(pts1)):
+        A[i] = np.array([pts2[i][0]*pts1[i][0], pts2[i][0]*pts1[i][1], pts2[i][0],
+                         pts2[i][1]*pts1[i][0], pts2[i][1]*pts1[i][1], pts2[i][1], pts1[i][0], pts1[i][1], 1])
+
+    U,D,UT=np.linalg.svd(A)
+    uF = UT[-1]
+    uF = rearrange(uF, '(c h)-> c h', c=3, h=3)
+    V,D,VT=np.linalg.svd(uF)
+    D[2]=0
+    D=np.diag(D)
+    cF = np.dot(np.dot(V,D),VT)
+    cF = np.dot(np.dot(T2.T, cF), T1)
+    cF = cF/cF[2,2]
+    return cF
+
+def findEpipole(F):
+    U,D,V=np.linalg.svd(F)
+    eR=U[:,-1]
+    eL=V[-1,:].T
+    eR=eR/eR[2]
+    eL=eL/eL[2]
+    Ex = np.array([[0, -eR[2],eR[1]],[eR[2],0,-eR[0]],[-eR[1],eR[0],0]])
+    return eL,eR,Ex
+
+
+
 
 
 
