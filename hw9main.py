@@ -36,6 +36,8 @@ def main():
     print(F, np.linalg.matrix_rank(F))
     eL,eR,Ex=findEpipole(F)
     print(eL, eR, Ex)
+    P1, P2 = getP(F, eR, Ex)
+    print(P1, P2)
 
 
 

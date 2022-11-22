@@ -1216,6 +1216,11 @@ def findEpipole(F):
     Ex = np.array([[0, -eR[2],eR[1]],[eR[2],0,-eR[0]],[-eR[1],eR[0],0]])
     return eL,eR,Ex
 
+def getP(F,e,Ex):
+    P1 = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0]])
+    P2 = np.column_stack((Ex@F, e.T))
+    return P1, P2
+
 
 
 
