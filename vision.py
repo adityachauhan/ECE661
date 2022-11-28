@@ -1461,7 +1461,7 @@ def plot_3D_point_cloud(world_pts, path, name):
     ax.scatter(world_pts[:, 0], world_pts[:, 1], world_pts[:, 2])
     fig_name = os.path.join(path, name)
     plt.savefig(fig_name)
-    # plt.show()
+    plt.show()
 
 def plot_3D_projection(world_pts, path, name):
     fig = plt.figure()
@@ -1481,7 +1481,7 @@ def plot_3D_projection(world_pts, path, name):
                 [world_pts[pair[0]][2], world_pts[pair[1]][2]])
     fig_name = os.path.join(path,name)
     plt.savefig(fig_name)
-    # plt.show()
+    plt.show()
 
 def getRefinedCorrs(H, pts):
     ref_pts = []
