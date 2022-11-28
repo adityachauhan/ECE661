@@ -32,8 +32,9 @@ def main():
     win_size=51
     gt_disp1,d_max1 = get_dmax(disp1)
     gt_disp2,d_max2 = get_dmax(disp2)
-    dmap1 = apply_census(img1_gray, img2_gray, d_max1, win_size)
-    dmap2 = apply_census(img2_gray, img1_gray, d_max2, win_size)
+    print(d_max1, d_max2)
+    dmap1 = apply_census_l2r(img1_gray, img2_gray, d_max1, win_size)
+    dmap2 = apply_census_r2l(img2_gray, img1_gray, d_max2, win_size)
     view_dmap(dmap1, "disp1_"+str(win_size)+".jpg", savepath)
     view_dmap(dmap2, "disp2_"+str(win_size)+".jpg", savepath)
     e1 = error_disp(dmap1, gt_disp1,"error1_"+str(win_size)+".jpg", savepath)

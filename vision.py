@@ -1492,10 +1492,12 @@ def getRefinedCorrs(H, pts):
 
 
 
-def apply_census(img1, img2, d_max, win_size=3):
+def apply_census_r2l(img1, img2, d_max, win_size=3):
     pad = win_size // 2
     bounds = d_max+pad
     d_map = np.zeros(img1.shape, dtype='uint8')
+    img1 = cv2.copyMakeBorder(img1, bounds, bounds, bounds, bounds, cv2.BORDER_CONSTANT, value=255)
+    img2 = cv2.copyMakeBorder(img2, bounds, bounds, bounds, bounds, cv2.BORDER_CONSTANT, value=255)
     h,w = img1.shape
     for r in trange(bounds, h-bounds):
         for c in range(w-bounds-1, bounds-1,-1):
@@ -1506,13 +1508,31 @@ def apply_census(img1, img2, d_max, win_size=3):
                 p2 = get_patch(img2,r,c-d,pad)
                 b2 = np.ravel((p2>p2[pad,pad])*1)
                 cost.append(sum(b1^b2))
-            d_map[r,c] = np.argmin(cost)
+            d_map[r-bounds,c-bounds] = np.argmin(cost)
 
     return d_map
+def apply_census_l2r(img1, img2, d_max, win_size=3):
+    pad = win_size // 2
+    bounds = d_max+pad
+    d_map = np.zeros(img1.shape, dtype='uint8')
+    img1 = cv2.copyMakeBorder(img1, bounds, bounds, bounds, bounds, cv2.BORDER_CONSTANT, value=255)
+    img2 = cv2.copyMakeBorder(img2, bounds, bounds, bounds, bounds, cv2.BORDER_CONSTANT, value=255)
+    h,w = img1.shape
+    for r in trange(bounds, h-bounds):
+        for c in range(bounds, w-bounds-1):
+            cost = []
+            p1 = get_patch(img1, r, c,pad)
+            b1 = np.ravel((p1 > p1[pad,pad])*1)
+            for d in range(d_max+1):
+                p2 = get_patch(img2,r,c+d,pad)
+                b2 = np.ravel((p2>p2[pad,pad])*1)
+                cost.append(sum(b1^b2))
+            d_map[r-bounds,c-bounds] = np.argmin(cost)
 
+    return d_map
 def get_dmax(disp):
     disp = bgr2gray(disp)
-    disp = disp.astype(np.float32) / 16.0
+    disp = disp.astype(np.float32) / 4.0
     disp = disp.astype(np.uint8)
     return disp,np.max(disp)
 
