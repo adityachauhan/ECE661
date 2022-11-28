@@ -193,6 +193,8 @@ def harrisCornerDetector(img, filter="HAAR", sigma=1.2):
     # print(len(corners[0]), len(corners[1]))
     return corners
 
+def get_patch(img, r,c,pad):
+    return img[r - pad:r + pad + 1, c - pad:c + pad + 1]
 def extarct_patch(pt, win_size, img):
     # print(img.shape)
     assert win_size%2 != 0
@@ -305,7 +307,7 @@ def SIFTpoints(img):
 
     for pt in pts:
         pts_set.append([int(pt.pt[0]), int(pt.pt[1])])
-    return pts_set, des
+    return np.array(pts_set), des
 
 
 def SIFTpoints_v2(img):
@@ -562,7 +564,9 @@ def findmaxmin(ho,wo,h):
     wpa4, hpa4 = hPrime[0], hPrime[1]
     wpa = max(wpa1, max(wpa2, max(wpa3, wpa4)))
     hpa = max(hpa1, max(hpa2, max(hpa3, hpa4)))
-    return wpa, hpa
+    wpe = min(wpa1, min(wpa2, min(wpa3, wpa4)))
+    hpe = min(hpa1, min(hpa2, min(hpa3, hpa4)))
+    return wpa, hpa, wpe, hpe
 
 def plthist(hist, bins, path=None):
     plt.bar(bins, hist, color='b', width=1, align='center', alpha=1)
@@ -787,11 +791,11 @@ def channelNorm(features):
     texture_des[1::2] = var
     return texture_des
 
-def cannyEdge(img, blur=False):
+def cannyEdge(img, blur=False, thresh1=300, thresh2=300,kernel=3):
     gray = bgr2gray(img)
     if blur:
         gray=gauss_blur(gray, 3)
-    edgeMap = cv2.Canny(gray, 300,300,None,3)
+    edgeMap = cv2.Canny(gray, thresh1,thresh2,None,kernel)
     return edgeMap
 
 def houghLines(edgeMap, thresh):
@@ -1046,6 +1050,7 @@ def paramSep(params, N, rd=False):
         k1,k2 = params[0:2]
         params = params[2:]
     k = params[:5]
+    k = params[:5]
     K = np.array([[k[0],k[1],k[2]],[0,k[3],k[4]],[0,0,1]])
     rem_params = params[5:]
     rem_params = rearrange(rem_params, '(c h) -> c h', c=N, h=6)
@@ -1199,20 +1204,29 @@ def calc_F(pts1, pts2, T1, T2):
     U,D,UT=np.linalg.svd(A)
     uF = UT[-1]
     uF = rearrange(uF, '(c h)-> c h', c=3, h=3)
-    V,D,VT=np.linalg.svd(uF)
-    D[2]=0
-    D=np.diag(D)
-    cF = np.dot(np.dot(V,D),VT)
-    cF = np.dot(np.dot(T2.T, cF), T1)
-    cF = cF/cF[2,2]
+    cF = cond_F(uF)
+    cF = normF(cF, T1, T2)
     return cF
+
+def cond_F(uF):
+    V, D, VT = np.linalg.svd(uF)
+    D[2] = 0
+    D = np.diag(D)
+    cF = np.dot(np.dot(V, D), VT)
+    return cF
+
+def normF(cF, T1, T2):
+    cF = np.dot(np.dot(T2.T, cF), T1)
+    cF = cF / cF[2, 2]
+    return cF
+
 
 def findEpipole(F):
     U,D,V=np.linalg.svd(F)
-    eR=U[:,-1]
-    eL=V[-1,:].T
-    eR=eR/eR[2]
-    eL=eL/eL[2]
+    eL = np.transpose(V[-1,:])
+    eR = U[:,-1]
+    eL = eL/eL[2]
+    eR = eR/eR[2]
     Ex = np.array([[0, -eR[2],eR[1]],[eR[2],0,-eR[0]],[-eR[1],eR[0],0]])
     return eL,eR,Ex
 
@@ -1221,13 +1235,301 @@ def getP(F,e,Ex):
     P2 = np.column_stack((Ex@F, e.T))
     return P1, P2
 
+def FCostFun(f, pts1, pts2):
+    F = rearrange(f,'(c h)-> c h ',c=3,h=3)
+    eL,eR,Ex = findEpipole(F)
+    P1,P2=getP(F,eR,Ex)
+    pts1_hc = pts2hc(pts1)
+    pts2_hc = pts2hc(pts2)
+    error=[]
+    for i in range(len(pts1)):
+        A = np.array([pts1_hc[i][0]*P1[2,:]-P1[0,:],pts1_hc[i][1]*P1[2,:]-P1[1,:],pts2_hc[i][0]*P2[2,:]-P2[0,:],pts2_hc[i][1]*P2[2,:]-P2[1,:]])
+        U,D,UT = np.linalg.svd(A)
+        X = UT[-1,:]
+        X = X/X[-1]
+        pts1_est = P1@X
+        pts2_est = P2@X
+        pts1_est=pts1_est/pts1_est[-1]
+        pts2_est=pts2_est/pts2_est[-1]
+        error.append(np.linalg.norm(pts1_est-pts1_hc[i])**2)
+        error.append(np.linalg.norm(pts2_est-pts2_hc[i])**2)
+    return np.array(error)
+
+
+def get_angle(e,h,w):
+    return np.arctan2(e[1] - h / 2, -(e[0] - w / 2))
+
+def get_R(angle):
+    return np.array([[np.cos(angle), -np.sin(angle), 0], [np.sin(angle), np.cos(angle), 0], [0, 0, 1]])
+
+def get_f(e, angle, w, h):
+    return (e[0] - w / 2) * np.cos(angle) - (e[1] - h / 2) * np.sin(angle)
+
+def get_G(f):
+    return np.array([[1, 0, 0], [0, 1, 0], [-1 / f, 0, 1]])
+
+def get_T(w,h,img_center, offset=False):
+    if offset:
+        return np.array([[1, 0, w/2 - img_center[0]], [0, 1, h/2 - img_center[1]], [0, 0, 1]])
+    return np.array([[1, 0, -w/2], [0, 1, -h/2], [0, 0, 1]])
+
+def get_TGRT(T1,G,R,T2):
+    return np.dot(np.dot(T1,G), np.dot(R,T2))
+
+
+def get_Ha(pts1, pts2, H1, H2):
+    pts1_hc = pts2hc(pts1)
+    pts2_hc = pts2hc(pts2)
+
+    x1 = (H1@(pts1_hc.T)).T
+    x2 = (H2@(pts2_hc.T)).T
+
+    x1[:, 0] /= x1[:, 2]
+    x1[:, 1] /= x1[:, 2]
+    x1[:, 2] /= x1[:, 2]
+    x2[:, 0] /= x2[:, 2]
+
+    h = np.linalg.pinv(x1)@x2[:, 0]
+    H = np.array([[h[0], h[1], h[2]], [0, 1, 0], [0, 0, 1]])
+    return H
+def get_homographies(height, width, pts1, pts2,e1,e2):
+    I = np.eye(3).astype(np.uint8)
+    T = get_T(width,height,[0,0])
+    angle = get_angle(e2,height,width)
+    R = get_R(angle)
+    f = get_f(e2,angle,width,height)
+    G= get_G(f)
+    H2c = get_TGRT(I,G,R,T)
+
+    img2C = H2c@np.array([width/2, height/2, 1])
+    img2C/=img2C[2]
+
+    T2 = get_T(width, height, [img2C[0],img2C[1]], True)
+    H2 = get_TGRT(T2,G,R,T)
+    H2/=H2[2,2]
+
+    angle = get_angle(e1, height, width)
+    R = get_R(angle)
+    f = get_f(e1, angle, width, height)
+    G = get_G(f)
+    H0 = get_TGRT(T,G,R,T)
+
+    Ha = get_Ha(pts1, pts2, H0, H2)
+
+    H1c = np.dot(Ha,H0)
+
+    img1C = H1c @ np.array([width / 2, height / 2, 1])
+    img1C /= img1C[2]
+
+    T1 = get_T(width, height, [img1C[0],img1C[1]], True)
+
+    H1 = T1@H1c
+    H1 /= H1[2,2]
+    return H1,H2
+
+
+def applyHomography(img, H):
+    h,w,c=img.shape
+    wpa,hpa,wpe,hpe=findmaxmin(h,w,H)
+    wt=wpa-wpe
+    ht=hpa-hpe
+    print(wpa,hpa,wpe,hpe)
+    hinv=np.linalg.pinv(H)
+    targetImg = np.zeros((ht,wt,3),dtype='uint8')
+    for c in tqdm(range(int(wt))):
+        for r in range(int(ht)):
+            X_prime=xpeqhx(c,r,hinv)
+            if X_prime[1]<=0:
+                X_prime[1]+=hpe
+            if X_prime[0] <= 0:
+                X_prime[0]+=wpe
+            if X_prime[1] < h and X_prime[0] < w and X_prime[0]>=0 and X_prime[1]>=0:
+                targetImg[r][c] = img[X_prime[1]][X_prime[0]]
+    return targetImg
 
 
 
+def filterDim(img):
+    img_gray = bgr2gray(img)
+    R,C = np.where(img_gray>0)
+    minH = np.min(R)
+    maxH = np.max(R)
+    minW = np.min(C)
+    maxW = np.max(C)
+    return minH, maxH, minW, maxW
+
+def filterImg(img, minH, maxH, minW, maxW):
+    return img[minH:maxH, minW:maxW]
+
+def epiLine(F,pts_hc,img):
+    eplineImg = img.copy()
+    lines = np.dot(F,pts_hc.T)
+    lines=lines.T
+    for line in lines:
+        cv2.line(eplineImg, (0,int(-line[2]/line[1])), (img.shape[1]-1, int(-(line[2]+line[0]*(img.shape[1]-1))/line[1])), pick_color(), 2)
+    return eplineImg
+
+
+def plot_pts(img, pts):
+    img_pts = img.copy()
+    color=pick_color()
+    for pt in pts:
+        cv2.circle(img_pts, (pt[0],pt[1]), radius=5, color=color, thickness=-1)
+
+    return img_pts
+
+
+# def get_corrs(edge1, edge2, r_win, col_win):
+def hc2pts(pts_hc):
+    pts_hc = pts_hc.T
+    pts = pts_hc[:,:-1]
+    return pts
+
+def get_corrs_sec_img(edge, row, col, col_k):
+    win = edge[row, col:col+col_k+1]
+    col_idxs = np.where(win>0)[0]
+    if len(col_idxs)>0:
+        col_idxs += col
+        return col_idxs
+    return np.empty(0)
+def get_corrs(edge1, edge2, col_k):
+    corrs=[]
+    for r in range(edge1.shape[0]):
+        c_L = np.where(edge1[r]>0)[0]
+        if len(c_L)>0:
+            for c in c_L:
+                c_R = get_corrs_sec_img(edge2, r, c, col_k)
+                if len(c_R)>0:
+                    edge2[r, c_R]=0
+                    corrs.append([[c,r],[c_R[0],r]])
+
+    return np.array(corrs)
+
+def ssd_corrs(pts1, pts2, img1, img2, win_size):
+    combined_pt_set=[]
+    patches1=[]
+    patches2=[]
+    pad=int((win_size-1)/2)
+    img1=cv2.copyMakeBorder(img1, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0)
+    img2=cv2.copyMakeBorder(img2, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0)
+    for pt in pts1:
+        patches1.append(extarct_patch(pt, win_size, img1))
+    for pt in pts2:
+        patches2.append(extarct_patch(pt, win_size, img2))
+    patches1=np.array(patches1)
+    patches2=np.array(patches2)
+    dist_vec = np.linalg.norm((patches1-patches2)**2, axis=1)
+    sorted_indexes = np.argsort(dist_vec)
+    return sorted_indexes
+
+def plot_corrs(img1, img2, corres, idxs, max_corrs):
+    img1Height = img1.shape[0]
+    img2Height = img2.shape[0]
+    if (img1Height<img2Height):
+        img1 = np.concatenate((img1, np.zeros((img2Height-img1Height, img1.shape[1],3), np.uint8)),0)
+    elif (img2Height<img1Height):
+        img2 = np.concatenate((img2, np.zeros((img1Height-img2Height, img2.shape[1],3), np.uint8)),0)
+    newImg = np.concatenate((img1, img2),1)
+    img2OffsetX = img1.shape[1]
+    for i in range(max_corrs):
+        ptSet = corres[idxs[i]]
+        pt1 = ptSet[0]
+        pt2 = np.array(ptSet[1])+[img2OffsetX,0]
+        color = pick_color()
+        cv2.line(newImg, pt1, pt2, color, 2, cv2.LINE_AA)
+        cv2.circle(newImg, pt1,4,color, -1)
+        cv2.circle(newImg, pt2,4,color, -1)
+    return newImg
+
+def Triangulate(pts1, pts2, P1, P2):
+    world_pts=[]
+    for i in range(len(pts1)):
+        A = np.array([pts1[i][0] * P1[2, :] - P1[0, :],
+                      pts1[i][1] * P1[2, :] - P1[1, :],
+                      pts2[i][0] * P2[2, :] - P2[0, :],
+                      pts2[i][1] * P2[2, :] - P2[1, :]])
+        U, D, UT = np.linalg.svd(A)
+        X = UT[-1, :].T
+        X = X / X[-1]
+        world_pts.append(X)
+    return np.asarray(world_pts)
+
+
+def plot_3D_point_cloud(world_pts, path, name):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(world_pts[:, 0], world_pts[:, 1], world_pts[:, 2])
+    fig_name = os.path.join(path, name)
+    plt.savefig(fig_name)
+    # plt.show()
+
+def plot_3D_projection(world_pts, path, name):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    pairs = [[0, 1],
+             [1, 2],
+             [2, 3],
+             [3, 1],
+             [1, 5],
+             [4, 6],
+             [5, 7],
+             [6, 8],
+             [8, 7]]
+    for pair in pairs:
+        ax.plot([world_pts[pair[0]][0], world_pts[pair[1]][0]],
+                [world_pts[pair[0]][1], world_pts[pair[1]][1]],
+                [world_pts[pair[0]][2], world_pts[pair[1]][2]])
+    fig_name = os.path.join(path,name)
+    plt.savefig(fig_name)
+    # plt.show()
+
+def getRefinedCorrs(H, pts):
+    ref_pts = []
+    for pt in pts:
+        [newX, newY, newZ] = np.dot(H, [pt[0], pt[1], 1.0])
+        ref_pts.append([round(newX/newZ), round(newY/newZ)])
+    return np.array(ref_pts)
 
 
 
+def apply_census(img1, img2, d_max, win_size=3):
+    pad = win_size // 2
+    bounds = d_max+pad
+    d_map = np.zeros(img1.shape, dtype='uint8')
+    h,w = img1.shape
+    for r in trange(bounds, h-bounds):
+        for c in range(w-bounds-1, bounds-1,-1):
+            cost = []
+            p1 = get_patch(img1, r, c,pad)
+            b1 = np.ravel((p1 > p1[pad,pad])*1)
+            for d in range(d_max+1):
+                p2 = get_patch(img2,r,c-d,pad)
+                b2 = np.ravel((p2>p2[pad,pad])*1)
+                cost.append(sum(b1^b2))
+            d_map[r,c] = np.argmin(cost)
 
+    return d_map
+
+def get_dmax(disp):
+    disp = bgr2gray(disp)
+    disp = disp.astype(np.float32) / 16.0
+    disp = disp.astype(np.uint8)
+    return disp,np.max(disp)
+
+def view_dmap(dmap, name, path):
+    dmap = (dmap/np.max(dmap)*255).astype(np.uint8)
+    save_img_v2(name, path, dmap)
+    # cv2show(dmap,'dmap')
+
+def error_disp(dmap, gt_dmap,name,path, delta=2):
+    error = abs(dmap - gt_dmap)
+    error = ((error<=delta)*255).astype(np.uint8)
+    save_img_v2(name, path, error)
+    # cv2show(error,'error')
+    de = cv2.countNonZero(error)
+    dg = cv2.countNonZero(gt_dmap)
+    print(de,dg)
+    return de/dg
 
 
 

@@ -254,7 +254,7 @@ void draw(Mat img, string name){
     // in OpenCV implementations in Microsoft Windows.
     Mat image_8U;
     img.convertTo(image_8U, CV_8U);
-
+    imwrite('LnZ.jpg', image_8U);
     imshow( name, image_8U );
 }
 
