@@ -1,0 +1,6 @@
+[PARAMETERS]
+top_dir=hw10data
+data_dir=FaceRecognition
+train_dir=train
+test_dir=test
+out_dir=hw10outputs
