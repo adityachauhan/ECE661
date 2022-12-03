@@ -1552,6 +1552,7 @@ def error_disp(dmap, gt_dmap,name,path, delta=2):
     return de/dg
 
 
-def data_loader()
+def data_loader(path):
+
 
 
