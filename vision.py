@@ -1699,6 +1699,29 @@ def plot_acc(pca_list, lda_list, K ):
     plt.show()
 
 
+def get_feature(img, max_size=2):
+    feature=[]
+    gx, gy = Sobel()
+    dx = convolve2d(img, gx, mode="same")
+    dy = convolve2d(img, gy, mode="same")
+    dx = rearrange(dx, 'c h -> (c h)')
+    dy = rearrange(dy, 'c h -> (c h)')
+    feature.append(dx)
+    feature.append(dy)
+    for size in range(1, max_size+1):
+        gx, gy = Haar_Wavelet(size)
+        dx = convolve2d(img, gx, mode="same")
+        dy = convolve2d(img, gy, mode="same")
+        dx = rearrange(dx, 'c h -> (c h)')
+        dy = rearrange(dy, 'c h -> (c h)')
+        feature.append(dx)
+        feature.append(dy)
+    feature=np.array(feature)
+    feature = rearrange(feature,'c h -> (c h)')
+    # print(feature.shape)
+    return feature
+
+
 
 
 

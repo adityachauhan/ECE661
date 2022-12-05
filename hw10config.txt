@@ -1,7 +1,10 @@
 [PARAMETERS]
 top_dir=hw10data
-data_dir=FaceRecognition
+#data_dir=FaceRecognition
+data_dir=CarDetection
 train_dir=train
 test_dir=test
 out_dir=hw10outputs
 weights=weights
+positive=positive
+negative=negative
