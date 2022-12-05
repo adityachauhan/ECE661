@@ -1553,6 +1553,49 @@ def error_disp(dmap, gt_dmap,name,path, delta=2):
     return de/dg
 
 
+# def data_loader(path):
+#     img_paths = glob.glob(path+'/*.png')
+#     X=[]
+#     Y=[]
+#     for path in img_paths:
+#         Y.append(int(path.split('.')[0].split('/')[-1].split('_')[0]))
+#         img = readImgCV(path)
+#         gray_img = bgr2gray(img)
+#         gray_img = rearrange(gray_img, 'h w -> (h w)')
+#         X.append(gray_img)
+#     # print(len(X), len(Y))
+#     return np.array(X), np.array(Y)
+#
+# def normalizeData(X):
+#     return X/np.linalg.norm(X)
+#
+# def prep_data(X):
+#     X = normalizeData(X)
+#     m = np.mean(X, axis=1)
+#     m = rearrange(m, '(c h) -> c h', h=1)
+#     X = X - m
+#     return X, m
+# def PCA(X):
+#     X,m=prep_data(X)
+#     C = X@X.T
+#     w,v = np.linalg.eig(C)
+#     sort_idx = np.argsort(w)
+#     v = v[~sort_idx]
+#     W = X.T@v
+#     W = W/np.linalg.norm(W)
+#     return m, W.T
+#
+# def nn(y_test, y_train, Y_train):
+#     Y_pred=[]
+#     for i in range(y_test.shape[0]):
+#         test_feature = y_test[i,:]
+#         diff = np.linalg.norm(y_train-test_feature, axis=1)
+#         idx = np.argmin(diff)
+#         Y_pred.append(Y_train[idx])
+#     Y_pred = np.array(Y_pred)
+#     match_num = len(np.where(Y_pred==Y_train)[0])
+#     return match_num
+
 def data_loader(path):
     img_paths = glob.glob(path+'/*.png')
     X=[]
@@ -1563,101 +1606,97 @@ def data_loader(path):
         gray_img = bgr2gray(img)
         gray_img = rearrange(gray_img, 'h w -> (h w)')
         X.append(gray_img)
-    print(len(X), len(Y))
-    return np.array(X), np.array(Y)
+    X = np.array(X)
+    Y=np.array(Y)
+    X=X.T
+    X=X/np.linalg.norm(X)
+    m = np.mean(X,axis=1)
+    m = rearrange(m, '(c h) -> c h', h=1)
+    # print(X.shape,Y.shape,m.shape)
+    return X,Y,m
 
-def normalizeData(X):
-    return X/np.linalg.norm(X)
+
 
 def prep_data(X):
-    X = normalizeData(X)
+    # X = normalizeData(X)
     m = np.mean(X, axis=1)
     m = rearrange(m, '(c h) -> c h', h=1)
     X = X - m
     return X, m
-def PCA(X):
-    X,m=prep_data(X)
-    C = X@X.T
+def PCA(X,m):
+    # X,m=prep_data(X)
+    X=X-m
+    C = X.T@X
+    # print(C.shape)
     w,v = np.linalg.eig(C)
     sort_idx = np.argsort(w)
     v = v[~sort_idx]
-    W = X.T@v
+    W = X@v
     W = W/np.linalg.norm(W)
-    return m, W.T
+    # print(W.shape)
+    return W
 
-def nn(y_test, y_train, Y_train):
+def NearestNeighbor(y_test, y_train, Y_train, Y_test):
+    # print(y_train.shape)
     Y_pred=[]
     for i in range(y_test.shape[0]):
         test_feature = y_test[i,:]
+        # print(test_feature.shape)
         diff = np.linalg.norm(y_train-test_feature, axis=1)
+        # print(diff.shape)
         idx = np.argmin(diff)
+        # print(idx)
         Y_pred.append(Y_train[idx])
     Y_pred = np.array(Y_pred)
-    match_num = len(np.where(Y_pred==Y_train)[0])
+    # print(Y_pred)
+    # print(Y_train)
+    match_num = len(np.where(Y_pred==Y_test)[0])
     return match_num
 
-def idx_per_class(Y, num_classes, num_samples):
+def idx_per_class(Y, num_classes):
     idx_array=[]
     for i in range(num_classes):
-        idxs = (np.where(Y==i+1)[0]).astype('uint8')
+        idxs = (np.where(Y==i+1)[0])
         idx_array.append(idxs)
     return np.array(idx_array)
-def LDA(X, idx_array):
-    m = np.mean(X, axis=0)
-    # print(m.shape)
-    X = normalizeData(X)
+
+def LDA(X,m, idx_array, num_classes):
     M = []
     for idx in idx_array:
-        mi = np.mean(X[idx], axis=0)
+        mi = np.mean(X[:,idx], axis=1)
+        mi = rearrange(mi, '(c h) -> c h', h=1)
         M.append(mi-m)
     M = np.array(M)
-    # print(M.shape)
+    M = rearrange(M, 'c h w -> c (h w)')
     _mtm = M@M.T
     _mtm_eig_val, _mtm_eig_vec = np.linalg.eig(_mtm)
-    print(_mtm_eig_vec.shape, _mtm_eig_val.shape)
     sort_idx = np.argsort(_mtm_eig_val)
     _mtm_eig_val = _mtm_eig_val[~sort_idx]
     _mtm_eig_vec = _mtm_eig_vec[~sort_idx]
-    # _mtm_eig_vec = _mtm_eig_vec/np.linalg.norm(_mtm_eig_vec)
-    _mtm_eig_vec = M.T@_mtm_eig_vec
-    print(_mtm_eig_vec.shape, _mtm_eig_val.shape)
-    # val_idxs = np.where(_mtm_eig_val>1e-6)[0]
-    # _mtm_eig_val = _mtm_eig_val[val_idxs]
-    # _mtm_eig_vec = _mtm_eig_vec[val_idxs]
-    Db = (np.diag(_mtm_eig_val))**(-0.5)
-    print(Db)
-    print(Db.shape, _mtm_eig_vec.shape)
-    Z = _mtm_eig_vec@Db
-    print(Z)
-    X_new = Z.T@X.T
-    print(X_new)
-    val,vec = np.linalg.eig(X_new@X_new.T)
-    print(val.shape, vec.shape)
-    # sort_idx = np.argsort(val)
-    # vec = vec[:, sort_idx]
-    # print(vec.shape)
-    # W = Z@vec
-    # print(W.shape)
-    # X_new=[]
-    # for i in range(len(idx_array)):
-    #     mc = M[i]
-    #     idxs = idx_array[i]
-    #     for idx in idxs:
-    #         X[idx] = X[idx]-mc
-    #     Xp = X[idxs]
-    #     X_new.append(np.mean(Xp,axis=0))
-    # X_new =np.array(X_new)
-    # print(X_new.shape)
-    # Ztx = Z.T@X_new
-    # print(Ztx.shape)
-    # Ztx_Ztxt = Ztx.T@Ztx
-    # print(Ztx_Ztxt.shape)
-    # eval, evec = np.linalg.eig(Ztx_Ztxt)
-    # evec = Z@evec
-    # print(evec.shape)
-    # W = evec/np.linalg.norm(evec)
-    # return W.T
-    return 0
+    g_idx = np.where(_mtm_eig_val>1e-5)[0]
+    _mtm_eig_val = _mtm_eig_val[g_idx]
+    _mtm_eig_vec = _mtm_eig_vec[g_idx]
+    V = M.T@_mtm_eig_vec.T
+    Db = np.eye(len(g_idx))*(_mtm_eig_val**(-0.5))
+    Z  =V@Db
+    Xn = Z.T@X
+    XntXn = Xn@Xn.T
+    val,vec = np.linalg.eig(XntXn)
+    sorted_idx = np.argsort(val)
+    vec = vec[~sorted_idx]
+    W = Z@vec
+    W=W/np.linalg.norm(W)
+    return W
+
+def plot_acc(pca_list, lda_list, K ):
+    plt.plot(K, pca_list,'ro')
+    plt.plot(K, pca_list, label='PCA')
+    plt.plot(K, lda_list,'bo')
+    plt.plot(K, lda_list, label='LDA')
+    plt.legend()
+    plt.xlabel('Dimensions')
+    plt.ylabel('Accuracy')
+    plt.show()
 
 
 

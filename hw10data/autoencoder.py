@@ -128,15 +128,40 @@ def train(epoch):
     print('====> Epoch: {} Average loss: {:.4f}'.format(
         epoch, train_loss / len(trainloader.dataset)))
 
-
+def NearestNeighbor(y_test, y_train, Y_train, Y_test):
+    # print(y_train.shape)
+    Y_pred=[]
+    for i in range(y_test.shape[0]):
+        test_feature = y_test[i,:]
+        # print(test_feature.shape)
+        diff = np.linalg.norm(y_train-test_feature, axis=1)
+        # print(diff.shape)
+        idx = np.argmin(diff)
+        # print(idx)
+        Y_pred.append(Y_train[idx])
+    Y_pred = np.array(Y_pred)
+    # print(Y_pred)
+    # print(Y_train)
+    match_num = len(np.where(Y_pred==Y_test)[0])
+    return match_num
+import configparser
+config = configparser.ConfigParser()
+config.read('hw10config.txt')
+top_dir = config['PARAMETERS']['top_dir']
+data_dir = config['PARAMETERS']['data_dir']
+train_dir = config['PARAMETERS']['train_dir']
+test_dir = config['PARAMETERS']['test_dir']
+weights = config['PARAMETERS']['weights']
+out_dir = config['PARAMETERS']['out_dir']
 ##################################
 # Change these
-p = 3  # [3, 8, 16]
+p = 16  # [3, 8, 16]
 training = False
-TRAIN_DATA_PATH = 'path/to/train/set'
-EVAL_DATA_PATH = 'path/to/test/set'
-LOAD_PATH = f'path/to/model_{p}.pt'
-OUT_PATH = 'path/to/exp'
+TRAIN_DATA_PATH = os.path.join(top_dir, data_dir, train_dir)
+EVAL_DATA_PATH = os.path.join(top_dir, data_dir, test_dir)
+weights = os.path.join(top_dir, weights)
+LOAD_PATH = weights+'/model_'+str(p)+'.pt'
+OUT_PATH = os.path.join(top_dir, out_dir)
 ##################################
 
 model = Autoencoder(p)
@@ -170,7 +195,7 @@ else:
         y_train.append(data['y'].item())
     X_train = np.stack(X_train)
     y_train = np.array(y_train)
-
+    # print(X_train.shape, y_train.shape)
     testloader = DataLoader(
         dataset=DataBuilder(EVAL_DATA_PATH),
         batch_size=1,
@@ -183,8 +208,10 @@ else:
         y_test.append(data['y'].item())
     X_test = np.stack(X_test)
     y_test = np.array(y_test)
-
+    # print(X_test.shape, y_test.shape)
+    num_matches = NearestNeighbor(X_test, X_train, y_train,y_test)
+    print(num_matches)
     ##################################
     # Your code starts here
-    pass
+    # pass
     ##################################
