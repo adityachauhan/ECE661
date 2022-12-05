@@ -1625,15 +1625,19 @@ def LDA(X, idx_array):
     # _mtm_eig_val = _mtm_eig_val[val_idxs]
     # _mtm_eig_vec = _mtm_eig_vec[val_idxs]
     Db = (np.diag(_mtm_eig_val))**(-0.5)
+    print(Db)
     print(Db.shape, _mtm_eig_vec.shape)
     Z = _mtm_eig_vec@Db
-    print(Z.shape)
+    print(Z)
     X_new = Z.T@X.T
-    print(X_new.shape)
+    print(X_new)
     val,vec = np.linalg.eig(X_new@X_new.T)
-    sort_idx = np.argsort(val)
-    vec = vec[:, sort_idx]
-    print(vec.shape)
+    print(val.shape, vec.shape)
+    # sort_idx = np.argsort(val)
+    # vec = vec[:, sort_idx]
+    # print(vec.shape)
+    # W = Z@vec
+    # print(W.shape)
     # X_new=[]
     # for i in range(len(idx_array)):
     #     mc = M[i]
