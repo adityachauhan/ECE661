@@ -39,6 +39,11 @@ def main():
     Y_train=[]
     X_test=[]
     Y_test=[]
+    num_pos_samples = len(train_pos_img_path)
+    num_neg_samples = len(train_neg_img_path)
+    init_weights_pos = np.ones((num_pos_samples))*(1/(2*num_pos_samples))
+    init_weights_neg = np.ones((num_neg_samples))*(1/(2*num_neg_samples))
+    init_weights = np.hstack((init_weights_pos,init_weights_neg))
     for i in range(len(train_pos_img_path)):
         path = train_pos_img_path[i]
         img = readImgCV(path)
@@ -59,6 +64,8 @@ def main():
     Y_train = np.array(Y_train)
     print(X_train.shape)
     print(Y_train.shape)
+
+    best_cls = weak_classifier(X_train, Y_train, init_weights)
 
 
 

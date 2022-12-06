@@ -1722,6 +1722,52 @@ def get_feature(img, max_size=2):
     return feature
 
 
+def weak_classifier(features, labels, weights):
+    Tp = np.sum(weights[labels==1])
+    Tn = np.sum(weights[labels==0])
+    best_cls = None
+    best_cls_err = float('inf')
+    for i in range(features.shape[1]):
+        feature = features[:,i]
+        sorted_idx = np.argsort(feature)
+        sorted_feature = feature[sorted_idx]
+        sorted_labels = labels[sorted_idx]
+        sorted_weights = weights[sorted_idx]
+        pos_idx = np.where(sorted_labels==1)[0]
+        neg_idx = np.where(sorted_labels==0)[0]
+        Sp = sorted_weights[pos_idx]
+        Sn = sorted_weights[neg_idx]
+        fp = np.zeros((features.shape[0],1))
+        fn = np.zeros((features.shape[0],1))
+        fp[pos_idx,0]=Sp
+        fn[neg_idx,0]=Sn
+
+        cum_pos_weights = np.cumsum(fp)
+        cum_neg_weights = np.cumsum(fn)
+        err1 = cum_pos_weights+Tn-cum_neg_weights
+        err2 = cum_neg_weights+Tp-cum_pos_weights
+        print(err1.shape, err2.shape)
+        err1 = np.reshape(err1,(len(err1),1))
+        err2 = np.reshape(err2,(len(err2),1))
+        err_vec = np.concatenate((err1,err2),1)
+        print(err_vec.shape)
+        min_idx = np.unravel_index(err_vec.argmin(), err_vec.shape)
+        print(min_idx)
+        min_err = np.min(err_vec)
+        print(min_err)
+        if min_err<best_cls_err:
+            best_cls_err=min_err
+            thresh = sorted_feature[min_idx[0]]
+            feat_idx = i
+            if min_idx[1]==0:
+                polarity = 1
+                cls = feature>=thresh
+            else:
+                polarity=-1
+                cls = feature<thresh
+        best_cls=[feat_idx, thresh, polarity, min_err, cls]
+    return best_cls
+        # print(Tp,Tn, Sp.shape, Sn.shape)
 
 
 
