@@ -15,6 +15,7 @@ from sklearn.neighbors import KNeighborsClassifier as knn
 from einops import rearrange
 config = configparser.ConfigParser()
 config.read('hw10config.txt')
+from sklearn.ensemble import AdaBoostClassifier
 
 
 def main():
@@ -35,65 +36,52 @@ def main():
     train_neg_img_path = glob.glob(train_neg+'/*.png')
     test_pos_img_path = glob.glob(test_pos + '/*.png')
     test_neg_img_path = glob.glob(test_neg + '/*.png')
-    X_train=[]
-    Y_train=[]
-    X_test=[]
-    Y_test=[]
-    num_pos_samples = len(train_pos_img_path)
-    num_neg_samples = len(train_neg_img_path)
-    init_weights_pos = np.ones((num_pos_samples))*(1/(2*num_pos_samples))
-    init_weights_neg = np.ones((num_neg_samples))*(1/(2*num_neg_samples))
-    init_weights = np.hstack((init_weights_pos,init_weights_neg))
-    for i in range(len(train_pos_img_path)):
-        path = train_pos_img_path[i]
-        img = readImgCV(path)
-        gray_img = bgr2gray(img)
-        feature = get_feature(gray_img)
-        X_train.append(feature.tolist())
-        Y_train.append(1)
 
-    for i in range(len(train_neg_img_path)):
-        path = train_neg_img_path[i]
-        img = readImgCV(path)
-        gray_img = bgr2gray(img)
-        feature = get_feature(gray_img)
-        X_train.append(feature.tolist())
+    feature_mode='haar'
+    max_size=1
+    X_train, Y_train = prep_data_AdaBoost(train_pos_img_path, train_neg_img_path, feature_mode, max_size)
+    X_test, Y_test = prep_data_AdaBoost(test_pos_img_path, test_neg_img_path,feature_mode, max_size)
 
-        Y_train.append(0)
-
-    X_train = np.array(X_train)
-    Y_train = np.array(Y_train)
     print(X_train.shape)
     print(Y_train.shape)
+    print(X_test.shape)
+    print(Y_test.shape)
 
-    # best_cls = classifier(X_train, Y_train, init_weights)
-    # print(best_cls)
     cascade_stages=[]
-    cum_fp=1
-    cum_fn=1
-    fp_vec=[]
-    fn_vec=[]
-    for i in range(10):
-        features, labels, perfRates, cascade = stage(X_train, Y_train,10, init_weights, num_pos_samples, num_neg_samples)
+    s=1
+    stop_condition=[1e-6,1e-6]
+    MODEL_STAT = np.array([1,1])
+    while 1:
+        print("Stage: ",s)
+        X_train, Y_train, model_stat, cascade = stage(X_train, Y_train)
         cascade_stages.append(cascade)
-        fp = perfRates[0]
-        fn = perfRates[1]
-        cum_fp = cum_fp*fp
-        cum_fn = cum_fn*fn
-        fp_vec.append(cum_fp)
-        fn_vec.append(cum_fn)
-        if cum_fp<1e-6 and cum_fn<1e-6:
-            break
-        if np.sum(labels==0)==0:
-            break
+        MODEL_STAT = np.append(MODEL_STAT, model_stat)
+        cond_vals = rearrange(MODEL_STAT,'(c h)->c h',h=2)
+        cond_vals = np.cumprod(cond_vals, axis=0)
+        s+=1
+        if (cond_vals[-1]<stop_condition).all(): break
 
-    cas_vals = (np.arange(len(fp_vec))+1).astype(np.uint8)
-    plt.plot(cas_vals, fp_vec)
-    plt.plot(cas_vals, fn_vec)
-    plt.ylabel('cum rate')
-    plt.xlabel('num_cas')
-    plt.title('plot')
+    print(cond_vals.shape)
+    cas_vals = (np.arange(len(cond_vals))).astype(np.uint8)
+    plt.plot(cas_vals, cond_vals[:,0], label='FP')
+    plt.plot(cas_vals, cond_vals[:,1], label='FN')
+    plt.ylabel('FP_FN')
+    plt.xlabel('Num stages')
+    plt.title('Plot of FP and FN VS stages')
+    plt.legend()
     plt.show()
+
+
+    test_AdaBoost(X_test, Y_test, cascade_stages)
+
+    # test_num_pos = np.sum(Y_test==1)
+    # for cascade in cascade_stages:
+    #     cls = test_stage(cascade, X_test)
+    #     model_stat = find_ft_pn(cls, test_num_pos)
+    #     print(model_stat)
+    #     X_test = X_test[np.where(cls==1), :][0]
+    #     Y_test = Y_test[np.where(cls==1)[0]]
+    #     test_num_pos = np.sum(Y_test==1)
 
 
 

@@ -1553,48 +1553,6 @@ def error_disp(dmap, gt_dmap,name,path, delta=2):
     return de/dg
 
 
-# def data_loader(path):
-#     img_paths = glob.glob(path+'/*.png')
-#     X=[]
-#     Y=[]
-#     for path in img_paths:
-#         Y.append(int(path.split('.')[0].split('/')[-1].split('_')[0]))
-#         img = readImgCV(path)
-#         gray_img = bgr2gray(img)
-#         gray_img = rearrange(gray_img, 'h w -> (h w)')
-#         X.append(gray_img)
-#     # print(len(X), len(Y))
-#     return np.array(X), np.array(Y)
-#
-# def normalizeData(X):
-#     return X/np.linalg.norm(X)
-#
-# def prep_data(X):
-#     X = normalizeData(X)
-#     m = np.mean(X, axis=1)
-#     m = rearrange(m, '(c h) -> c h', h=1)
-#     X = X - m
-#     return X, m
-# def PCA(X):
-#     X,m=prep_data(X)
-#     C = X@X.T
-#     w,v = np.linalg.eig(C)
-#     sort_idx = np.argsort(w)
-#     v = v[~sort_idx]
-#     W = X.T@v
-#     W = W/np.linalg.norm(W)
-#     return m, W.T
-#
-# def nn(y_test, y_train, Y_train):
-#     Y_pred=[]
-#     for i in range(y_test.shape[0]):
-#         test_feature = y_test[i,:]
-#         diff = np.linalg.norm(y_train-test_feature, axis=1)
-#         idx = np.argmin(diff)
-#         Y_pred.append(Y_train[idx])
-#     Y_pred = np.array(Y_pred)
-#     match_num = len(np.where(Y_pred==Y_train)[0])
-#     return match_num
 
 def data_loader(path):
     img_paths = glob.glob(path+'/*.png')
@@ -1699,26 +1657,47 @@ def plot_acc(pca_list, lda_list, K ):
     plt.show()
 
 
-def get_feature(img, max_size=2):
+def prep_data_AdaBoost(pos_img_path, neg_img_path, feature_mode, max_size):
+    X=[]
+    Y=[]
+    for i in range(len(pos_img_path)):
+        path = pos_img_path[i]
+        img = readImgCV(path)
+        gray_img = bgr2gray(img)
+        feature = get_feature(gray_img, feature_mode, max_size)
+        X.append(feature.tolist())
+        Y.append(1)
+
+    for i in range(len(neg_img_path)):
+        path = neg_img_path[i]
+        img = readImgCV(path)
+        gray_img = bgr2gray(img)
+        feature = get_feature(gray_img, feature_mode, max_size)
+        X.append(feature.tolist())
+        Y.append(0)
+    return np.array(X), np.array(Y)
+
+def get_feature(img,feature_mode='sobel', max_size=1):
     feature=[]
-    gx, gy = Sobel()
-    dx = convolve2d(img, gx, mode="same")
-    dy = convolve2d(img, gy, mode="same")
-    dx = rearrange(dx, 'c h -> (c h)')
-    dy = rearrange(dy, 'c h -> (c h)')
-    feature.append(dx)
-    feature.append(dy)
-    for size in range(1, max_size+1):
-        gx, gy = Haar_Wavelet(size)
+    if feature_mode=='sobel':
+        gx, gy = Sobel()
         dx = convolve2d(img, gx, mode="same")
         dy = convolve2d(img, gy, mode="same")
         dx = rearrange(dx, 'c h -> (c h)')
         dy = rearrange(dy, 'c h -> (c h)')
         feature.append(dx)
         feature.append(dy)
+    elif feature_mode=='haar':
+        for size in range(1, max_size+1):
+            gx, gy = Haar_Wavelet(size)
+            dx = convolve2d(img, gx, mode="same")
+            dy = convolve2d(img, gy, mode="same")
+            dx = rearrange(dx, 'c h -> (c h)')
+            dy = rearrange(dy, 'c h -> (c h)')
+            feature.append(dx)
+            feature.append(dy)
     feature=np.array(feature)
     feature = rearrange(feature,'c h -> (c h)')
-    # print(feature.shape)
     return feature
 
 def get_cumsum(w,fl,idx):
@@ -1738,12 +1717,14 @@ def _Beta_(err):
     return err/abs(1-err+1e-6)
 
 def _Alpha_(beta):
-    return np.log(1/beta)
+    return np.log(1/abs(beta+1e-6))
 
 def update_weights(weights, beta, cls, labels):
     return weights*(beta**(1-(cls!=labels)*1))
 
 def classifier(features, labels, weights):
+    # print(labels.shape)
+    # print(weights.shape)
     Tp = np.sum(weights[labels==1])
     Tn = np.sum(weights[labels==0])
     MIN_ERR = []
@@ -1776,51 +1757,78 @@ def classifier(features, labels, weights):
     MIN_ERR=np.array(MIN_ERR);MODEL = np.array(MODEL);PRED = np.array(PRED)
     err_sort_idx = np.argsort(MIN_ERR)
     MIN_ERR = MIN_ERR[err_sort_idx];MODEL = MODEL[err_sort_idx];PRED=PRED[err_sort_idx]
-    return MIN_ERR[0],MODEL[0], PRED[0]
+    return err_sort_idx[0],MIN_ERR[0],MODEL[0], PRED[0]
 
-def stage(features, labels, N, weights, num_pos_samples, num_neg_samples):
+def stage(features, labels):
+    num_pos_samples=np.sum(labels==1)
+    num_neg_samples=np.sum(labels==0)
+    weights = np.hstack((np.ones((num_pos_samples)) * (1 / (2 * num_pos_samples)),
+                         np.ones((num_neg_samples)) * (1 / (2 * num_neg_samples))))
     weak_classifiers=[]
-    strong_classifer=np.zeros((features.shape[0]))
+    str_classifer=np.zeros((features.shape[0]))
     thresh=0
-    for _ in range(N):
+
+    while 1:
         weights = weights / np.sum(weights)
         cls = classifier(features, labels, weights)
-        beta = _Beta_(cls[0])
+        beta = _Beta_(cls[1])
         alpha = _Alpha_(beta)
         weak_classifiers.append([cls,alpha])
-        weights = update_weights(weights, beta, cls[2], labels)
-        strong_classifer, thresh = update_strong_classifier(strong_classifer, alpha, thresh,cls[2])
-        fp,fn=find_fp_fn(strong_classifer, num_pos_samples, num_neg_samples)
+        weights = update_weights(weights, beta, cls[3], labels)
+        str_classifer = str_classifer+(alpha*cls[3])
+        thresh = thresh+(alpha*0.5)
+        strong_classifer = str_classifer>=thresh
+        model_stat = find_ft_pn(strong_classifer, num_pos_samples)
+        fp=model_stat[0]/num_neg_samples;fn=model_stat[1]/num_pos_samples
         if fp<=0.5 and fn<=0: break
 
     weak_classifiers = np.array(weak_classifiers)
-    print(weak_classifiers, weak_classifiers.shape)
+    print(weak_classifiers.shape)
 
-    revised_feats = features[:num_pos_samples,:]
-    negFeatures = features[num_pos_samples:,:]
-    negFeature_mask = cls[2][num_pos_samples:]
-    negFeature_masked= negFeatures[np.where(negFeature_mask==1),:][0]
-    negFeature_masked=np.reshape(negFeature_masked, (len(negFeature_masked), np.size(features,1)))
-    revised_feats = np.concatenate((revised_feats,negFeature_masked),0)
-    revisedLabels = np.concatenate((np.ones((num_pos_samples,1), np.uint8), np.zeros((len(negFeature_masked),1), np.uint8)),0)
-    perfRates = [fp,fn]
-    return revised_feats, revisedLabels, perfRates, weak_classifiers
-
-
+    pos_idxs = np.arange(num_pos_samples)
+    fp_idxs = np.where(cls[3][num_pos_samples:]==1)[0] + num_pos_samples
+    rem_idx = np.concatenate((pos_idxs, fp_idxs))
+    return features[rem_idx], labels[rem_idx], (fp,fn), weak_classifiers
 
 
 def update_strong_classifier(str_cls, alpha, thresh, cls):
     str_cls = str_cls + (alpha*cls)
-    thresh = alpha*thresh
+    thresh = thresh + alpha*0.5
     return (str_cls>=thresh)*1, thresh
 
-def find_fp_fn(str_cls, num_pos_samples, num_neg_samples):
-    fp = np.sum(str_cls[num_pos_samples:]==1)/num_neg_samples
-    fn = 1-np.sum(str_cls[:num_pos_samples]==1)/num_pos_samples
-    return fp, fn
+def find_ft_pn(str_cls, num_pos_samples):
+    fp = len(np.where(str_cls[num_pos_samples:]==1)[0])
+    fn = len(np.where(str_cls[:num_pos_samples]==0)[0])
+    tp = len(np.where(str_cls[:num_pos_samples]==1)[0])
+    tn = len(np.where(str_cls[num_pos_samples:]==0)[0])
+    return fp, fn, tp, tn
 
 
 
+
+def test_stage(cascade, features):
+    str_classifier=np.zeros((features.shape[0]));th=0
+    for weak_cls in cascade:
+        feat_vec_row = features[:, weak_cls[0][0]]
+        if weak_cls[0][2][1] == 1: cls = feat_vec_row>=weak_cls[0][2][0]
+        else: cls=feat_vec_row<weak_cls[0][2][0]
+        str_classifier = str_classifier+(weak_cls[1]*cls)
+        th = th+(weak_cls[1]*0.5)
+    final_cls = str_classifier>=th
+    return final_cls
+
+def test_AdaBoost(X_test, Y_test, cascade_stages):
+    test_num_pos = np.sum(Y_test == 1)
+    for cascade in cascade_stages:
+        cls = test_stage(cascade, X_test)
+        model_stat = find_ft_pn(cls, test_num_pos)
+        print(model_stat)
+        X_test = X_test[np.where(cls == 1), :][0]
+        Y_test = Y_test[np.where(cls == 1)[0]]
+        test_num_pos = np.sum(Y_test == 1)
+
+def AdaBoost_accuracy(model_stat):
+    pass
 
 
 
