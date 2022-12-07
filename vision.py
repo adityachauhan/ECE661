@@ -1793,9 +1793,20 @@ def stage(features, labels, N, weights, num_pos_samples, num_neg_samples):
         fp,fn=find_fp_fn(strong_classifer, num_pos_samples, num_neg_samples)
         if fp<=0.5 and fn<=0: break
 
-
     weak_classifiers = np.array(weak_classifiers)
     print(weak_classifiers, weak_classifiers.shape)
+
+    revised_feats = features[:num_pos_samples,:]
+    negFeatures = features[num_pos_samples:,:]
+    negFeature_mask = cls[2][num_pos_samples:]
+    negFeature_masked= negFeatures[np.where(negFeature_mask==1),:][0]
+    negFeature_masked=np.reshape(negFeature_masked, (len(negFeature_masked), np.size(features,1)))
+    revised_feats = np.concatenate((revised_feats,negFeature_masked),0)
+    revisedLabels = np.concatenate((np.ones((num_pos_samples,1), np.uint8), np.zeros((len(negFeature_masked),1), np.uint8)),0)
+    perfRates = [fp,fn]
+    return revised_feats, revisedLabels, perfRates, weak_classifiers
+
+
 
 
 def update_strong_classifier(str_cls, alpha, thresh, cls):

@@ -68,7 +68,35 @@ def main():
 
     # best_cls = classifier(X_train, Y_train, init_weights)
     # print(best_cls)
-    stage(X_train, Y_train,3, init_weights, num_pos_samples, num_neg_samples)
+    cascade_stages=[]
+    cum_fp=1
+    cum_fn=1
+    fp_vec=[]
+    fn_vec=[]
+    for i in range(10):
+        features, labels, perfRates, cascade = stage(X_train, Y_train,10, init_weights, num_pos_samples, num_neg_samples)
+        cascade_stages.append(cascade)
+        fp = perfRates[0]
+        fn = perfRates[1]
+        cum_fp = cum_fp*fp
+        cum_fn = cum_fn*fn
+        fp_vec.append(cum_fp)
+        fn_vec.append(cum_fn)
+        if cum_fp<1e-6 and cum_fn<1e-6:
+            break
+        if np.sum(labels==0)==0:
+            break
+
+    cas_vals = (np.arange(len(fp_vec))+1).astype(np.uint8)
+    plt.plot(cas_vals, fp_vec)
+    plt.plot(cas_vals, fn_vec)
+    plt.ylabel('cum rate')
+    plt.xlabel('num_cas')
+    plt.title('plot')
+    plt.show()
+
+
+
 
 
 
