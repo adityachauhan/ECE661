@@ -68,7 +68,7 @@ def main():
 
     # best_cls = classifier(X_train, Y_train, init_weights)
     # print(best_cls)
-    stage(X_train, Y_train,3, init_weights)
+    stage(X_train, Y_train,3, init_weights, num_pos_samples, num_neg_samples)
 
 
 

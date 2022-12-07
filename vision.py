@@ -1778,8 +1778,10 @@ def classifier(features, labels, weights):
     MIN_ERR = MIN_ERR[err_sort_idx];MODEL = MODEL[err_sort_idx];PRED=PRED[err_sort_idx]
     return MIN_ERR[0],MODEL[0], PRED[0]
 
-def stage(features, labels, N, weights):
+def stage(features, labels, N, weights, num_pos_samples, num_neg_samples):
     weak_classifiers=[]
+    strong_classifer=np.zeros((features.shape[0]))
+    thresh=0
     for _ in range(N):
         weights = weights / np.sum(weights)
         cls = classifier(features, labels, weights)
@@ -1787,13 +1789,24 @@ def stage(features, labels, N, weights):
         alpha = _Alpha_(beta)
         weak_classifiers.append([cls,alpha])
         weights = update_weights(weights, beta, cls[2], labels)
+        strong_classifer, thresh = update_strong_classifier(strong_classifer, alpha, thresh,cls[2])
+        fp,fn=find_fp_fn(strong_classifer, num_pos_samples, num_neg_samples)
+        if fp<=0.5 and fn<=0: break
+
+
     weak_classifiers = np.array(weak_classifiers)
     print(weak_classifiers, weak_classifiers.shape)
 
 
+def update_strong_classifier(str_cls, alpha, thresh, cls):
+    str_cls = str_cls + (alpha*cls)
+    thresh = alpha*thresh
+    return (str_cls>=thresh)*1, thresh
 
-
-
+def find_fp_fn(str_cls, num_pos_samples, num_neg_samples):
+    fp = np.sum(str_cls[num_pos_samples:]==1)/num_neg_samples
+    fn = 1-np.sum(str_cls[:num_pos_samples]==1)/num_pos_samples
+    return fp, fn
 
 
 
