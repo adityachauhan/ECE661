@@ -58,6 +58,7 @@ def main():
         gray_img = bgr2gray(img)
         feature = get_feature(gray_img)
         X_train.append(feature.tolist())
+
         Y_train.append(0)
 
     X_train = np.array(X_train)
@@ -65,7 +66,9 @@ def main():
     print(X_train.shape)
     print(Y_train.shape)
 
-    best_cls = weak_classifier(X_train, Y_train, init_weights)
+    # best_cls = classifier(X_train, Y_train, init_weights)
+    # print(best_cls)
+    stage(X_train, Y_train,3, init_weights)
 
 
 

@@ -1721,53 +1721,79 @@ def get_feature(img, max_size=2):
     # print(feature.shape)
     return feature
 
+def get_cumsum(w,fl,idx):
+    f = np.zeros((fl))
+    f[idx]=w
+    f_cum = np.cumsum(f)
+    return f_cum
 
-def weak_classifier(features, labels, weights):
+def sort_vecs(features, labels, weights):
+    sort_idx = np.argsort(features)
+    features=features[sort_idx]
+    labels=labels[sort_idx]
+    weights=weights[sort_idx]
+    return features, labels, weights
+
+def _Beta_(err):
+    return err/abs(1-err+1e-6)
+
+def _Alpha_(beta):
+    return np.log(1/beta)
+
+def update_weights(weights, beta, cls, labels):
+    return weights*(beta**(1-(cls!=labels)*1))
+
+def classifier(features, labels, weights):
     Tp = np.sum(weights[labels==1])
     Tn = np.sum(weights[labels==0])
-    best_cls = None
-    best_cls_err = float('inf')
+    MIN_ERR = []
+    MODEL=[]
+    PRED=[]
     for i in range(features.shape[1]):
         feature = features[:,i]
-        sorted_idx = np.argsort(feature)
-        sorted_feature = feature[sorted_idx]
-        sorted_labels = labels[sorted_idx]
-        sorted_weights = weights[sorted_idx]
+        sorted_feature, sorted_labels, sorted_weights = sort_vecs(feature, labels, weights)
+
         pos_idx = np.where(sorted_labels==1)[0]
         neg_idx = np.where(sorted_labels==0)[0]
+
         Sp = sorted_weights[pos_idx]
         Sn = sorted_weights[neg_idx]
-        fp = np.zeros((features.shape[0],1))
-        fn = np.zeros((features.shape[0],1))
-        fp[pos_idx,0]=Sp
-        fn[neg_idx,0]=Sn
 
-        cum_pos_weights = np.cumsum(fp)
-        cum_neg_weights = np.cumsum(fn)
+        cum_pos_weights = get_cumsum(Sp, features.shape[0], pos_idx)
+        cum_neg_weights = get_cumsum(Sn, features.shape[0], neg_idx)
+
         err1 = cum_pos_weights+Tn-cum_neg_weights
         err2 = cum_neg_weights+Tp-cum_pos_weights
-        print(err1.shape, err2.shape)
-        err1 = np.reshape(err1,(len(err1),1))
-        err2 = np.reshape(err2,(len(err2),1))
-        err_vec = np.concatenate((err1,err2),1)
-        print(err_vec.shape)
-        min_idx = np.unravel_index(err_vec.argmin(), err_vec.shape)
-        print(min_idx)
-        min_err = np.min(err_vec)
-        print(min_err)
-        if min_err<best_cls_err:
-            best_cls_err=min_err
-            thresh = sorted_feature[min_idx[0]]
-            feat_idx = i
-            if min_idx[1]==0:
-                polarity = 1
-                cls = feature>=thresh
-            else:
-                polarity=-1
-                cls = feature<thresh
-        best_cls=[feat_idx, thresh, polarity, min_err, cls]
-    return best_cls
-        # print(Tp,Tn, Sp.shape, Sn.shape)
+        err = np.vstack((err1,err2)).T
+
+        min_idx = np.unravel_index(err.argmin(), err.shape)
+        min_err = np.min(err)
+        MIN_ERR.append(min_err)
+        MODEL.append([sorted_feature[min_idx[0]],((min_idx[1]==0)*2)-1])
+        if min_idx[1]==0: PRED.append((feature>=sorted_feature[min_idx[0]])*1)
+        else: PRED.append((feature<sorted_feature[min_idx[0]])*1)
+
+    MIN_ERR=np.array(MIN_ERR);MODEL = np.array(MODEL);PRED = np.array(PRED)
+    err_sort_idx = np.argsort(MIN_ERR)
+    MIN_ERR = MIN_ERR[err_sort_idx];MODEL = MODEL[err_sort_idx];PRED=PRED[err_sort_idx]
+    return MIN_ERR[0],MODEL[0], PRED[0]
+
+def stage(features, labels, N, weights):
+    weak_classifiers=[]
+    for _ in range(N):
+        weights = weights / np.sum(weights)
+        cls = classifier(features, labels, weights)
+        beta = _Beta_(cls[0])
+        alpha = _Alpha_(beta)
+        weak_classifiers.append([cls,alpha])
+        weights = update_weights(weights, beta, cls[2], labels)
+    weak_classifiers = np.array(weak_classifiers)
+    print(weak_classifiers, weak_classifiers.shape)
+
+
+
+
+
 
 
 
