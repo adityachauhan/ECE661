@@ -30,7 +30,8 @@ def main():
     K = np.arange(29)
     pca_acc = []
     lda_acc = []
-    tot_samples=len(X_test)
+    tot_samples=X_test.shape[1]
+    print(tot_samples)
     for k in K:
         y_test_pca = W_pca[:,:k+1].T@(X_test-mg_test)
         y_train_pca = W_pca[:,:k+1].T@(X_train-mg_train)

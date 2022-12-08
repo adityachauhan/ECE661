@@ -147,8 +147,9 @@ def NearestNeighbor(y_test, y_train, Y_train, Y_test):
 
 import matplotlib.pyplot as plt
 def plot_autoEncoder():
-    Y = [568,624,630]
-    X = [3,8,16]
+    Y = np.array([568,624,630])
+    Y=Y/630
+    X = np.array([3,8,16])
     plt.plot(X,Y,'ro')
     plt.plot(X,Y,label='AutoEncoder')
     plt.legend()
