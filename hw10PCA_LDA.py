@@ -10,9 +10,6 @@ import cv2
 import glob
 import warnings
 warnings.filterwarnings("ignore")
-from scipy.optimize import least_squares
-from sklearn.neighbors import KNeighborsClassifier as knn
-from einops import rearrange
 config = configparser.ConfigParser()
 config.read('hw10config.txt')
 
@@ -31,7 +28,6 @@ def main():
     idx_array = idx_per_class(Y_train, num_classes)
     W_lda = LDA(X_train,mg_train,idx_array, num_classes)
     K = np.arange(29)
-    K = [3,8,16]
     pca_acc = []
     lda_acc = []
     tot_samples=len(X_test)
@@ -42,7 +38,7 @@ def main():
         y_train_lda = W_lda[:, :k+1].T @(X_train-mg_train)
         num_matches_pca = NearestNeighbor(y_test_pca.T,y_train_pca.T,Y_train,Y_test)
         num_matches_lda = NearestNeighbor(y_test_lda.T,y_train_lda.T,Y_train,Y_test)
-        print(num_matches_pca, num_matches_lda)
+        print(k, num_matches_pca, num_matches_lda)
         pca_acc.append(num_matches_pca/tot_samples)
         lda_acc.append(num_matches_lda/tot_samples)
     pca_acc = np.array(pca_acc)

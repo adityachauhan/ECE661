@@ -1570,28 +1570,23 @@ def data_loader(path):
     X=X/np.linalg.norm(X)
     m = np.mean(X,axis=1)
     m = rearrange(m, '(c h) -> c h', h=1)
-    # print(X.shape,Y.shape,m.shape)
     return X,Y,m
 
 
 
 def prep_data(X):
-    # X = normalizeData(X)
     m = np.mean(X, axis=1)
     m = rearrange(m, '(c h) -> c h', h=1)
     X = X - m
     return X, m
 def PCA(X,m):
-    # X,m=prep_data(X)
     X=X-m
     C = X.T@X
-    # print(C.shape)
     w,v = np.linalg.eig(C)
     sort_idx = np.argsort(w)
     v = v[~sort_idx]
     W = X@v
     W = W/np.linalg.norm(W)
-    # print(W.shape)
     return W
 
 def NearestNeighbor(y_test, y_train, Y_train, Y_test):
@@ -1599,15 +1594,10 @@ def NearestNeighbor(y_test, y_train, Y_train, Y_test):
     Y_pred=[]
     for i in range(y_test.shape[0]):
         test_feature = y_test[i,:]
-        # print(test_feature.shape)
         diff = np.linalg.norm(y_train-test_feature, axis=1)
-        # print(diff.shape)
         idx = np.argmin(diff)
-        # print(idx)
         Y_pred.append(Y_train[idx])
     Y_pred = np.array(Y_pred)
-    # print(Y_pred)
-    # print(Y_train)
     match_num = len(np.where(Y_pred==Y_test)[0])
     return match_num
 
@@ -1723,8 +1713,6 @@ def update_weights(weights, beta, cls, labels):
     return weights*(beta**(1-(cls!=labels)*1))
 
 def classifier(features, labels, weights):
-    # print(labels.shape)
-    # print(weights.shape)
     Tp = np.sum(weights[labels==1])
     Tn = np.sum(weights[labels==0])
     MIN_ERR = []
@@ -1804,7 +1792,31 @@ def find_ft_pn(str_cls, num_pos_samples):
     return fp, fn, tp, tn
 
 
+def train_AdaBoost(X_train, Y_train):
+    cascade_stages = []
+    s = 1
+    stop_condition = [1e-6, 1e-6]
+    MODEL_STAT = np.array([1, 1])
+    while 1:
+        print("Stage: ", s)
+        X_train, Y_train, model_stat, cascade = stage(X_train, Y_train)
+        cascade_stages.append(cascade)
+        MODEL_STAT = np.append(MODEL_STAT, model_stat)
+        cond_vals = rearrange(MODEL_STAT, '(c h)->c h', h=2)
+        cond_vals = np.cumprod(cond_vals, axis=0)
+        s += 1
+        if (cond_vals[-1] < stop_condition).all():
+            return cond_vals, cascade_stages
 
+def plot_AdaBoost_train_curve(cond_vals):
+    cas_vals = (np.arange(len(cond_vals) - 1)).astype(np.uint8)
+    plt.plot(cas_vals, cond_vals[1:, 0], label='FP')
+    plt.plot(cas_vals, cond_vals[1:, 1], label='FN')
+    plt.ylabel('FP_FN')
+    plt.xlabel('Num stages')
+    plt.title('Plot of FP and FN VS stages')
+    plt.legend()
+    plt.show()
 
 def test_stage(cascade, features):
     str_classifier=np.zeros((features.shape[0]));th=0
@@ -1819,16 +1831,18 @@ def test_stage(cascade, features):
 
 def test_AdaBoost(X_test, Y_test, cascade_stages):
     test_num_pos = np.sum(Y_test == 1)
+    MODEL_STAT=[]
     for cascade in cascade_stages:
         cls = test_stage(cascade, X_test)
         model_stat = find_ft_pn(cls, test_num_pos)
-        print(model_stat)
+        MODEL_STAT.append(model_stat)
         X_test = X_test[np.where(cls == 1), :][0]
         Y_test = Y_test[np.where(cls == 1)[0]]
         test_num_pos = np.sum(Y_test == 1)
+    return np.array(MODEL_STAT)
 
-def AdaBoost_accuracy(model_stat):
-    pass
+def AdaBoost_accuracy(model_stat, total_image):
+    return ((np.sum(model_stat[:,3])+model_stat[-1][2])/total_image)*100
 
 
 

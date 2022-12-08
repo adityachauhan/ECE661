@@ -144,6 +144,18 @@ def NearestNeighbor(y_test, y_train, Y_train, Y_test):
     # print(Y_train)
     match_num = len(np.where(Y_pred==Y_test)[0])
     return match_num
+
+import matplotlib.pyplot as plt
+def plot_autoEncoder():
+    Y = [568,624,630]
+    X = [3,8,16]
+    plt.plot(X,Y,'ro')
+    plt.plot(X,Y,label='AutoEncoder')
+    plt.legend()
+    plt.xlabel('Dimensions')
+    plt.ylabel('Accuracy')
+    plt.show()
+
 import configparser
 config = configparser.ConfigParser()
 config.read('hw10config.txt')
@@ -155,7 +167,7 @@ weights = config['PARAMETERS']['weights']
 out_dir = config['PARAMETERS']['out_dir']
 ##################################
 # Change these
-p = 16  # [3, 8, 16]
+p = 3  # [3, 8, 16]
 training = False
 TRAIN_DATA_PATH = os.path.join(top_dir, data_dir, train_dir)
 EVAL_DATA_PATH = os.path.join(top_dir, data_dir, test_dir)
@@ -208,10 +220,7 @@ else:
         y_test.append(data['y'].item())
     X_test = np.stack(X_test)
     y_test = np.array(y_test)
-    # print(X_test.shape, y_test.shape)
     num_matches = NearestNeighbor(X_test, X_train, y_train,y_test)
     print(num_matches)
-    ##################################
-    # Your code starts here
-    # pass
-    ##################################
+    plot_autoEncoder()
+
