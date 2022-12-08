@@ -223,5 +223,4 @@ else:
     y_test = np.array(y_test)
     num_matches = NearestNeighbor(X_test, X_train, y_train,y_test)
     print(num_matches)
-    plot_autoEncoder()
 

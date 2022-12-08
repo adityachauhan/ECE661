@@ -1637,10 +1637,12 @@ def LDA(X,m, idx_array, num_classes):
     return W
 
 def plot_acc(pca_list, lda_list, K ):
-    plt.plot(K, pca_list,'ro')
-    plt.plot(K, pca_list, label='PCA')
-    plt.plot(K, lda_list,'bo')
-    plt.plot(K, lda_list, label='LDA')
+    Y = np.array([568, 624, 630])
+    Y = Y / 630
+    X = np.array([3, 8, 16])
+    plt.plot(X, Y, label='AutoEncoder', linewidth=1)
+    plt.plot(K, pca_list, label='PCA', linewidth=1)
+    plt.plot(K, lda_list, label='LDA', linewidth=1)
     plt.legend()
     plt.xlabel('Dimensions')
     plt.ylabel('Accuracy')
